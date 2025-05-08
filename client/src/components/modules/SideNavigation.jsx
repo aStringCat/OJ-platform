@@ -1,4 +1,6 @@
-import { React, useState } from "react";
+import React, { useState } from "react";
+
+import { Link } from "react-router-dom";
 
 import Box from "@mui/material/Box";
 import Drawer from "@mui/material/Drawer";
@@ -46,24 +48,28 @@ const StyledDrawer = styled(Drawer)(({ theme }) => ({
   boxSizing: "border-box",
   "& .MuiDrawer-paper": {
     ...closedMixin(theme),
+    backgroundColor: "#EDF1F7",
     "&:hover": {
       ...openedMixin(theme),
     },
   },
 }));
 
+const navList1 = [
+  { title: "Dashboard", icon: <DashboardIcon />, path: "/dashboard" },
+  { title: "Problems", icon: <ListAltIcon />, path: "/problems" },
+  { title: "My Submissions", icon: <HistoryIcon />, path: "/submissions" },
+  { title: "Contests", icon: <EmojiEventsIcon />, path: "/contests" },
+  { title: "Standings", icon: <LeaderboardIcon />, path: "/standings" },
+];
+
+const navList2 = [
+  { title: "User Profile", icon: <AccountCircleIcon />, path: "/profile" },
+  { title: "Settings", icon: <SettingsIcon />, path: "/settings" },
+];
+
 const SideNavigation = () => {
   const [open, setOpen] = useState(false);
-
-  const navList = [
-    { title: "Dashboard", icon: <DashboardIcon />, path: "/dashboard" },
-    { title: "Problems", icon: <ListAltIcon />, path: "/problems" },
-    { title: "My Submissions", icon: <HistoryIcon />, path: "/submissions" },
-    { title: "Contests", icon: <EmojiEventsIcon />, path: "/contests" },
-    { title: "Standings", icon: <LeaderboardIcon />, path: "/standings" },
-    { title: "User Profile", icon: <AccountCircleIcon />, path: "/profile" },
-    { title: "Settings", icon: <SettingsIcon />, path: "/settings" },
-  ];
 
   return (
     <Box sx={{ display: "flex" }} zIndex={9}>
@@ -76,7 +82,21 @@ const SideNavigation = () => {
         <Toolbar />
         <Divider />
         <List>
-          {navList.map((context) => (
+          {navList1.map((context) => (
+            <ListItem key={context.title} disablePadding>
+              <ListItemButton component={Link} to={context.path} sx={{ px: 2.5 }}>
+                <ListItemIcon sx={{ minWidth: 0, mr: open ? 3 : "auto", justifyContent: "center" }}>
+                  {context.icon}
+                </ListItemIcon>
+                <ListItemText
+                  primary={context.title}
+                  sx={{ opacity: open ? 1 : 0, transition: "opacity 0.2s", whiteSpace: "nowrap" }}
+                />
+              </ListItemButton>
+            </ListItem>
+          ))}
+          <Divider />
+          {navList2.map((context) => (
             <ListItem key={context.title} disablePadding>
               <ListItemButton sx={{ px: 2.5 }}>
                 <ListItemIcon sx={{ minWidth: 0, mr: open ? 3 : "auto", justifyContent: "center" }}>
