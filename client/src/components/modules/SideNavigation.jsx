@@ -72,7 +72,7 @@ const SideNavigation = () => {
   const [open, setOpen] = useState(false);
 
   return (
-    <Box sx={{ display: "flex" }} zIndex={9}>
+    <Box width={56} sx={{ display: "flex" }} zIndex={9}>
       <CssBaseline />
       <StyledDrawer
         variant="permanent"
@@ -98,7 +98,7 @@ const SideNavigation = () => {
           <Divider />
           {navList2.map((context) => (
             <ListItem key={context.title} disablePadding>
-              <ListItemButton sx={{ px: 2.5 }}>
+              <ListItemButton component={Link} to={context.path} sx={{ px: 2.5 }}>
                 <ListItemIcon sx={{ minWidth: 0, mr: open ? 3 : "auto", justifyContent: "center" }}>
                   {context.icon}
                 </ListItemIcon>

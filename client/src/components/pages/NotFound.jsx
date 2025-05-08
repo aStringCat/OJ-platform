@@ -32,7 +32,7 @@ const NotFound = () => {
           color="primary"
           sx={{ mt: 3, mb: 2 }}
         >
-          Go to Homepage
+          Back to Homepage
         </Button>
       </Box>
     </Container>
