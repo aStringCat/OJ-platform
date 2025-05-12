@@ -1,29 +1,18 @@
 import React, { useState, useEffect } from "react";
 import ProblemCard from "../modules/ProblemCard";
-//import { get } from "../../utilities";
 
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
 import Box from "@mui/material/Box";
-import Grid from "@mui/material/Grid";
+import Paper from "@mui/material/Paper";
 
 const Problems = () => {
   const [problems, setProblems] = useState([]);
 
-  /*
-  useEffect(() => {
-    document.title = "News Feed";
-    get("/api/problems").then((problems) => {
-      let reversedProblems = problems.reverse();
-      setProblems(reversedProblems);
-    });
-  }, []);
-  */
-
   useEffect(() => {
     const problem1 = {
       id: "2025A",
-      name: "hello world",
+      name: "hello world, this is a very long problem name to test overflow",
       difficulty: "hard",
     };
     const problem2 = {
@@ -33,7 +22,7 @@ const Problems = () => {
     };
     const problem3 = {
       id: "2025C",
-      name: "split",
+      name: "split string problem with multiple words",
       difficulty: "hard",
     };
     const problem4 = {
@@ -47,18 +36,19 @@ const Problems = () => {
       difficulty: "easy",
     };
     const hardcoded = [problem1, problem2, problem3, problem4, problem5];
-
     setProblems(hardcoded);
   }, []);
 
-  const problemsList = problems.map((problem) => (
-    <Grid item key={`ProblemCard_${problem.id}`} xs={12} sm={6} md={4} lg={3}>
-      <ProblemCard
-        problem_id={problem.id}
-        problem_name={problem.name}
-        problem_difficulty={problem.difficulty}
-      />
-    </Grid>
+  const problemsList = problems.map((problem, index) => (
+    <ProblemCard
+      key={`ProblemCard_${problem.id}`}
+      problem_id={problem.id}
+      problem_name={problem.name}
+      problem_difficulty={problem.difficulty}
+      sx={{
+        backgroundColor: index % 2 === 0 ? "white" : "#f9f9f9",
+      }}
+    />
   ));
 
   return (
@@ -68,9 +58,70 @@ const Problems = () => {
           Problem List
         </Typography>
       </Box>
-      <Grid container spacing={2}>
-        {problemsList}
-      </Grid>
+      <Paper
+        elevation={1}
+        sx={{
+          border: "1px solid #e0e0e0",
+          overflow: "hidden" /* Ensure Paper itself handles overflow if needed */,
+        }}
+      >
+        {/* Header Row */}
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            py: 1.5, // Match ProblemCard's row vertical padding
+            fontWeight: "bold",
+            backgroundColor: "#f0f0f0",
+            borderBottom: "1px solid #ddd",
+          }}
+        >
+          <Typography
+            variant="subtitle1"
+            sx={{
+              flexBasis: "15%", // Match ProblemCard cell
+              textAlign: "left",
+              fontWeight: "bold",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              px: 1.5, // Match ProblemCard cell padding
+            }}
+          >
+            ID
+          </Typography>
+          <Typography
+            variant="subtitle1"
+            sx={{
+              flexBasis: "60%", // Match ProblemCard cell
+              textAlign: "left",
+              fontWeight: "bold",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              px: 1.5, // Match ProblemCard cell padding
+            }}
+          >
+            Name
+          </Typography>
+          <Typography
+            variant="subtitle1"
+            sx={{
+              flexBasis: "25%", // Match ProblemCard cell
+              textAlign: "right",
+              fontWeight: "bold",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              px: 1.5, // Match ProblemCard cell padding
+            }}
+          >
+            Difficulty
+          </Typography>
+        </Box>
+        {/* List of Problems */}
+        <Box sx={{ display: "flex", flexDirection: "column" }}>{problemsList}</Box>
+      </Paper>
     </Container>
   );
 };
