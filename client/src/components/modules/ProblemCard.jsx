@@ -29,7 +29,7 @@ const ProblemCard = (props) => {
       <Typography
         variant="body1"
         sx={{
-          flexBasis: "15%",
+          flexBasis: "20%",
           textAlign: "left",
           overflow: "hidden",
           textOverflow: "ellipsis",
@@ -42,7 +42,7 @@ const ProblemCard = (props) => {
       <Typography
         variant="body1"
         sx={{
-          flexBasis: "60%",
+          flexBasis: "55%",
           textAlign: "left",
           overflow: "hidden",
           textOverflow: "ellipsis",

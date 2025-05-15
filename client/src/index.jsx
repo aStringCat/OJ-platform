@@ -5,6 +5,7 @@ import NotFound from "./components/pages/NotFound";
 import Home from "./components/pages/Home.jsx";
 import Dashboard from "./components/pages/Dashboard.jsx";
 import Problems from "./components/pages/Problems.jsx";
+import LoginPage from "./components/pages/LoginRegister.jsx";
 
 import {
   createBrowserRouter,
@@ -15,11 +16,14 @@ import {
 
 const router = createBrowserRouter(
   createRoutesFromElements(
-    <Route errorElement={<NotFound />} element={<App />}>
-      <Route path="/" element={<Home />} />
-      <Route path="/dashboard" element={<Dashboard />} />
-      <Route path="/problems" element={<Problems />} />
-    </Route>
+    <>
+      <Route errorElement={<NotFound />} element={<App />}>
+        <Route path="/" element={<Home />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/problems" element={<Problems />} />
+      </Route>
+      <Route path="/login" element={<LoginPage />} />
+    </>
   )
 );
 

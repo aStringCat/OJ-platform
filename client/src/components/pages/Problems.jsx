@@ -76,7 +76,7 @@ const Problems = () => {
           <Typography
             variant="subtitle1"
             sx={{
-              flexBasis: "15%",
+              flexBasis: "20%",
               textAlign: "left",
               fontWeight: "bold",
               overflow: "hidden",
@@ -90,7 +90,7 @@ const Problems = () => {
           <Typography
             variant="subtitle1"
             sx={{
-              flexBasis: "60%",
+              flexBasis: "55%",
               textAlign: "left",
               fontWeight: "bold",
               overflow: "hidden",
