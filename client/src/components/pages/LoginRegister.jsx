@@ -1,17 +1,43 @@
+import { useNavigate, useLocation, Link } from "react-router-dom";
+
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import TextField from "@mui/material/TextField";
 import Button from "@mui/material/Button";
 import Paper from "@mui/material/Paper";
 import Divider from "@mui/material/Divider";
-import Link from "@mui/material/Link";
 import IconButton from "@mui/material/IconButton";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { useNavigate } from "react-router-dom";
 
-const LoginPage = () => {
+const BackButton = () => {
   const navigate = useNavigate();
+  const location = useLocation();
 
+  const handleBack = () => {
+    const fromPath = location.state?.from;
+    if (fromPath && fromPath !== "/login" && fromPath !== "/register") {
+      navigate(fromPath, { replace: true });
+    } else {
+      navigate("/");
+    }
+  };
+
+  return (
+    <IconButton
+      aria-label="back"
+      onClick={handleBack}
+      sx={{
+        position: "absolute",
+        top: 16,
+        left: 16,
+      }}
+    >
+      <ArrowBackIcon />
+    </IconButton>
+  );
+};
+
+export const LoginPage = () => {
   return (
     <Box
       sx={{
@@ -37,17 +63,7 @@ const LoginPage = () => {
           position: "relative",
         }}
       >
-        <IconButton
-          aria-label="back"
-          onClick={() => navigate(-1)}
-          sx={{
-            position: "absolute",
-            top: 8,
-            left: 8,
-          }}
-        >
-          <ArrowBackIcon />
-        </IconButton>
+        <BackButton />
         <Typography variant="h5" component="h1" gutterBottom sx={{ fontWeight: "bold", mt: 3 }}>
           Welcome to Kestral
         </Typography>
@@ -63,6 +79,7 @@ const LoginPage = () => {
             fontWeight: "bold",
             textTransform: "none",
             fontSize: "1rem",
+            mt: 1,
           }}
         >
           Log In
@@ -76,13 +93,20 @@ const LoginPage = () => {
         </Box>
         <Typography variant="body2" sx={{ textAlign: "center" }}>
           Don't have an account?{" "}
-          <Link
-            href="#"
-            underline="hover"
-            sx={{ fontWeight: "bold", color: "secondary.main", cursor: "pointer" }}
-            onClick={(e) => e.preventDefault()}
-          >
-            Sign up
+          <Link to="/register" style={{ textDecoration: "none" }}>
+            <Typography
+              component="span"
+              sx={{
+                fontWeight: "bold",
+                color: "secondary.main",
+                cursor: "pointer",
+                "&:hover": {
+                  textDecoration: "underline",
+                },
+              }}
+            >
+              Sign up
+            </Typography>
           </Link>
         </Typography>
       </Paper>
@@ -90,4 +114,74 @@ const LoginPage = () => {
   );
 };
 
-export default LoginPage;
+export const RegisterPage = () => {
+  return (
+    <Box
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        minHeight: "100vh",
+        backgroundColor: "#f0f2f5",
+        p: 2,
+      }}
+    >
+      <Paper
+        elevation={3}
+        sx={{
+          p: 4,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 2.5,
+          width: "100%",
+          maxWidth: "400px",
+          position: "relative",
+        }}
+      >
+        <BackButton />
+        <Typography variant="h5" component="h1" gutterBottom sx={{ fontWeight: "bold", mt: 3 }}>
+          Create Account
+        </Typography>
+        <TextField label="Username" variant="outlined" fullWidth />
+        <TextField label="Email" variant="outlined" fullWidth />
+        <TextField label="Password" type="password" variant="outlined" fullWidth />
+        <TextField label="Confirm Password" type="password" variant="outlined" fullWidth />
+        <Button
+          variant="contained"
+          color="primary"
+          fullWidth
+          sx={{
+            borderRadius: "50px",
+            p: "10px 0",
+            fontWeight: "bold",
+            textTransform: "none",
+            fontSize: "1rem",
+            mt: 1,
+          }}
+        >
+          Sign Up
+        </Button>
+        <Typography variant="body2" sx={{ textAlign: "center", mt: 2 }}>
+          Already have an account?{" "}
+          <Link to="/login" style={{ textDecoration: "none" }}>
+            <Typography
+              component="span"
+              sx={{
+                fontWeight: "bold",
+                color: "secondary.main",
+                cursor: "pointer",
+                "&:hover": {
+                  textDecoration: "underline",
+                },
+              }}
+            >
+              Log In
+            </Typography>
+          </Link>
+        </Typography>
+      </Paper>
+    </Box>
+  );
+};

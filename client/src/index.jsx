@@ -5,7 +5,7 @@ import NotFound from "./components/pages/NotFound";
 import Home from "./components/pages/Home.jsx";
 import Dashboard from "./components/pages/Dashboard.jsx";
 import Problems from "./components/pages/Problems.jsx";
-import LoginPage from "./components/pages/LoginRegister.jsx";
+import { LoginPage, RegisterPage } from "./components/pages/LoginRegister.jsx";
 
 import {
   createBrowserRouter,
@@ -23,6 +23,7 @@ const router = createBrowserRouter(
         <Route path="/problems" element={<Problems />} />
       </Route>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
     </>
   )
 );
