@@ -1,0 +1,10 @@
+import { Schema, model } from "mongoose";
+
+const ProblemSchema = new Schema({
+  problem_id: String,
+  problem_name: String,
+  problem_difficulty: String,
+  content: String,
+});
+
+export default model("problem", ProblemSchema);

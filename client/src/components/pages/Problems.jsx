@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import ProblemCard from "../modules/ProblemCard";
 
 import Container from "@mui/material/Container";
@@ -22,7 +22,7 @@ const Problems = () => {
     };
     const problem3 = {
       id: "2025C",
-      name: "split string problem with multiple words",
+      name: "sklearn",
       difficulty: "hard",
     };
     const problem4 = {
@@ -32,7 +32,7 @@ const Problems = () => {
     };
     const problem5 = {
       id: "2025E",
-      name: "yet or no",
+      name: "中文にほんごрусский язык😘😋",
       difficulty: "easy",
     };
     const hardcoded = [problem1, problem2, problem3, problem4, problem5];
@@ -45,14 +45,12 @@ const Problems = () => {
       problem_id={problem.id}
       problem_name={problem.name}
       problem_difficulty={problem.difficulty}
-      sx={{
-        backgroundColor: index % 2 === 0 ? "white" : "#f9f9f9",
-      }}
+      sx={{ backgroundColor: index % 2 === 0 ? "white" : "#f9f9f9" }}
     />
   ));
 
   return (
-    <Container sx={{ mt: 4, mb: 4 }}>
+    <Container maxWidth={false} sx={{ mt: 4, mb: 4, width: "90%" }}>
       <Box sx={{ textAlign: "center", mb: 3 }}>
         <Typography variant="h4" component="h1">
           Problem List
@@ -62,15 +60,14 @@ const Problems = () => {
         elevation={1}
         sx={{
           border: "1px solid #e0e0e0",
-          overflow: "hidden" /* Ensure Paper itself handles overflow if needed */,
+          overflow: "hidden",
         }}
       >
-        {/* Header Row */}
         <Box
           sx={{
             display: "flex",
             alignItems: "center",
-            py: 1.5, // Match ProblemCard's row vertical padding
+            py: 1.5,
             fontWeight: "bold",
             backgroundColor: "#f0f0f0",
             borderBottom: "1px solid #ddd",
@@ -79,13 +76,13 @@ const Problems = () => {
           <Typography
             variant="subtitle1"
             sx={{
-              flexBasis: "15%", // Match ProblemCard cell
+              flexBasis: "15%",
               textAlign: "left",
               fontWeight: "bold",
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
-              px: 1.5, // Match ProblemCard cell padding
+              px: 1.5,
             }}
           >
             ID
@@ -93,13 +90,13 @@ const Problems = () => {
           <Typography
             variant="subtitle1"
             sx={{
-              flexBasis: "60%", // Match ProblemCard cell
+              flexBasis: "60%",
               textAlign: "left",
               fontWeight: "bold",
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
-              px: 1.5, // Match ProblemCard cell padding
+              px: 1.5,
             }}
           >
             Name
@@ -107,19 +104,18 @@ const Problems = () => {
           <Typography
             variant="subtitle1"
             sx={{
-              flexBasis: "25%", // Match ProblemCard cell
+              flexBasis: "25%",
               textAlign: "right",
               fontWeight: "bold",
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
-              px: 1.5, // Match ProblemCard cell padding
+              px: 1.5,
             }}
           >
             Difficulty
           </Typography>
         </Box>
-        {/* List of Problems */}
         <Box sx={{ display: "flex", flexDirection: "column" }}>{problemsList}</Box>
       </Paper>
     </Container>

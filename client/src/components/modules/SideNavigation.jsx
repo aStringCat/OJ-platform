@@ -1,7 +1,5 @@
-import React, { useState } from "react";
-
+import { useState } from "react";
 import { Link } from "react-router-dom";
-
 import Box from "@mui/material/Box";
 import Drawer from "@mui/material/Drawer";
 import CssBaseline from "@mui/material/CssBaseline";
@@ -30,30 +28,33 @@ const openedMixin = (theme) => ({
     easing: theme.transitions.easing.sharp,
     duration: theme.transitions.duration.enteringScreen,
   }),
+  overflowX: "hidden",
 });
 
 const closedMixin = (theme) => ({
-  width: `calc(${theme.spacing(7)} + 1px)`,
   transition: theme.transitions.create("width", {
     easing: theme.transitions.easing.sharp,
     duration: theme.transitions.duration.leavingScreen,
   }),
   overflowX: "hidden",
+  width: `calc(${theme.spacing(7)} + 1px)`,
+  [theme.breakpoints.up("sm")]: {
+    width: `calc(${theme.spacing(8)} + 1px)`,
+  },
 });
 
-const StyledDrawer = styled(Drawer)(({ theme }) => ({
-  width: drawerWidth,
-  flexShrink: 0,
-  whiteSpace: "nowrap",
-  boxSizing: "border-box",
-  "& .MuiDrawer-paper": {
-    ...closedMixin(theme),
-    backgroundColor: "#EDF1F7",
-    "&:hover": {
-      ...openedMixin(theme),
+const StyledDrawer = styled(Drawer, { shouldForwardProp: (prop) => prop !== "open" })(
+  ({ theme, open }) => ({
+    flexShrink: 0,
+    whiteSpace: "nowrap",
+    boxSizing: "border-box",
+    ...(open ? openedMixin(theme) : closedMixin(theme)),
+    "& .MuiDrawer-paper": {
+      ...(open ? openedMixin(theme) : closedMixin(theme)),
+      backgroundColor: "#EDF1F7",
     },
-  },
-}));
+  })
+);
 
 const navList1 = [
   { title: "Dashboard", icon: <DashboardIcon />, path: "/dashboard" },
@@ -72,10 +73,11 @@ const SideNavigation = () => {
   const [open, setOpen] = useState(false);
 
   return (
-    <Box width={56} sx={{ display: "flex" }} zIndex={9}>
+    <Box sx={{ display: "flex" }} zIndex={9}>
       <CssBaseline />
       <StyledDrawer
         variant="permanent"
+        open={open}
         onMouseEnter={() => setOpen(true)}
         onMouseLeave={() => setOpen(false)}
       >
@@ -83,9 +85,23 @@ const SideNavigation = () => {
         <Divider />
         <List>
           {navList1.map((context) => (
-            <ListItem key={context.title} disablePadding>
-              <ListItemButton component={Link} to={context.path} sx={{ px: 2.5 }}>
-                <ListItemIcon sx={{ minWidth: 0, mr: open ? 3 : "auto", justifyContent: "center" }}>
+            <ListItem key={context.title} disablePadding sx={{ display: "block" }}>
+              <ListItemButton
+                component={Link}
+                to={context.path}
+                sx={{
+                  minHeight: 48,
+                  justifyContent: open ? "initial" : "center",
+                  px: 2.5,
+                }}
+              >
+                <ListItemIcon
+                  sx={{
+                    minWidth: 0,
+                    mr: open ? 3 : "auto",
+                    justifyContent: "center",
+                  }}
+                >
                   {context.icon}
                 </ListItemIcon>
                 <ListItemText
@@ -95,11 +111,27 @@ const SideNavigation = () => {
               </ListItemButton>
             </ListItem>
           ))}
-          <Divider />
+        </List>
+        <Divider />
+        <List>
           {navList2.map((context) => (
-            <ListItem key={context.title} disablePadding>
-              <ListItemButton component={Link} to={context.path} sx={{ px: 2.5 }}>
-                <ListItemIcon sx={{ minWidth: 0, mr: open ? 3 : "auto", justifyContent: "center" }}>
+            <ListItem key={context.title} disablePadding sx={{ display: "block" }}>
+              <ListItemButton
+                component={Link}
+                to={context.path}
+                sx={{
+                  minHeight: 48,
+                  justifyContent: open ? "initial" : "center",
+                  px: 2.5,
+                }}
+              >
+                <ListItemIcon
+                  sx={{
+                    minWidth: 0,
+                    mr: open ? 3 : "auto",
+                    justifyContent: "center",
+                  }}
+                >
                   {context.icon}
                 </ListItemIcon>
                 <ListItemText

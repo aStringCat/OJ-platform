@@ -1,18 +1,14 @@
-import React, { useEffect } from "react";
 import { Outlet } from "react-router-dom";
-
 import SideNavigation from "./modules/SideNavigation";
 import Box from "@mui/material/Box";
 
 const App = () => {
-  useEffect(() => {}, []);
-
   return (
-    <Box sx={{ display: "flex" }}>
+    <Box sx={{ display: "flex", minHeight: "100vh" }}>
       <SideNavigation />
-      <div className="App-container">
+      <Box sx={{ flexGrow: 1, overflow: "auto" }}>
         <Outlet />
-      </div>
+      </Box>
     </Box>
   );
 };
