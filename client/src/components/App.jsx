@@ -1,7 +1,7 @@
-import { Outlet, Link } from "react-router-dom";
+import { Outlet } from "react-router-dom";
+import LoginButtion from "./modules/LoginButton";
 import SideNavigation from "./modules/SideNavigation";
 import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
 
 const App = () => {
   return (
@@ -9,9 +9,7 @@ const App = () => {
       <SideNavigation />
       <Box sx={{ flexGrow: 1, overflow: "auto", position: "relative" }}>
         <Box sx={{ position: "absolute", top: 8, right: 16 }}>
-          <Button component={Link} to="/login" variant="contained">
-            Login
-          </Button>
+          <LoginButtion />
         </Box>
         <Outlet />
       </Box>
