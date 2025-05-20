@@ -11,12 +11,9 @@ const port = 3000;
 const app = express();
 
 mongoose
-  .connect("mongodb://localhost:27017/mydatabase", {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
+  .connect("mongodb://localhost:27017/mydatabase", {})
   .then(() => console.log("Successfully connect to MongoDB"))
-  .catch((err) => console.error("MongoDB 连接失败:", err));
+  .catch((err) => console.error("MongoDB connection error:", err));
 
 app.use(validator.checkRoutes);
 
