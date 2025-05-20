@@ -1,12 +1,48 @@
-# React + Vite
+# Kestrel Online Judge Platform
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+### About This Platform
 
-Currently, two official plugins are available:
+Kestrel is an Online Judge (OJ) platform designed for practicing and competing in programming problems. Users can browse a list of problems, view individual problem details (including description, difficulty, and examples), and submit their code solutions in various languages (Python, JavaScript, Java, C++ and so on). The platform also includes functionality for administrators to add new problems.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+The frontend is built with React and Vite, utilizing Material UI for components. The backend is powered by Node.js and Express, with MongoDB as the database.
 
-## Expanding the ESLint configuration
+### Getting Started
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+**Prerequisites:**
+
+- Node.js (version >=18.x recommended)
+- npm (comes with Node.js)
+- MongoDB running locally (default connection is `mongodb://localhost:27017/mydatabase`)
+
+**Setup and Running:**
+
+1.  **Install Dependencies:**
+    Open your terminal, navigate to the project's root directory, and run:
+
+    ```bash
+    npm install
+    ```
+
+2.  **Run the Backend Server:**
+    In one terminal window, start the backend server:
+
+    ```bash
+    npm start
+    ```
+
+    This uses `nodemon` to run `server/server.js`, so the server will automatically restart if you make changes to backend files. The backend server runs on port 3000 by default.
+
+3.  **Run the Frontend Development Server:**
+    In a second terminal window, start the Vite frontend development server:
+
+    ```bash
+    npm run dev
+    ```
+
+    This will start the React application. The frontend development server typically runs on port 5173.
+
+4.  **Access the Platform:**
+    Open your web browser and navigate to:
+    `http://localhost:5173`
+
+    API requests from the frontend to `/api` and WebSocket connections to `/socket.io` will be proxied to the backend server running on `http://localhost:3000`.
