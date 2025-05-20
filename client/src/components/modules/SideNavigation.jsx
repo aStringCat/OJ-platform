@@ -19,6 +19,7 @@ import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import LeaderboardIcon from "@mui/icons-material/Leaderboard";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import SettingsIcon from "@mui/icons-material/Settings";
+import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
 
 const drawerWidth = 240;
 
@@ -64,6 +65,10 @@ const navList1 = [
   { title: "Standings", icon: <LeaderboardIcon />, path: "/standings" },
 ];
 
+const navListActions = [
+  { title: "Add Problem", icon: <AddCircleOutlineIcon />, path: "/add-problem" },
+];
+
 const navList2 = [
   { title: "User Profile", icon: <AccountCircleIcon />, path: "/profile" },
   { title: "Settings", icon: <SettingsIcon />, path: "/settings" },
@@ -85,6 +90,36 @@ const SideNavigation = () => {
         <Divider />
         <List>
           {navList1.map((context) => (
+            <ListItem key={context.title} disablePadding sx={{ display: "block" }}>
+              <ListItemButton
+                component={Link}
+                to={context.path}
+                sx={{
+                  minHeight: 48,
+                  justifyContent: open ? "initial" : "center",
+                  px: 2.5,
+                }}
+              >
+                <ListItemIcon
+                  sx={{
+                    minWidth: 0,
+                    mr: open ? 3 : "auto",
+                    justifyContent: "center",
+                  }}
+                >
+                  {context.icon}
+                </ListItemIcon>
+                <ListItemText
+                  primary={context.title}
+                  sx={{ opacity: open ? 1 : 0, transition: "opacity 0.2s", whiteSpace: "nowrap" }}
+                />
+              </ListItemButton>
+            </ListItem>
+          ))}
+        </List>
+        <Divider />
+        <List>
+          {navListActions.map((context) => (
             <ListItem key={context.title} disablePadding sx={{ display: "block" }}>
               <ListItemButton
                 component={Link}

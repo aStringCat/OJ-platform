@@ -5,7 +5,8 @@ import NotFound from "./components/pages/NotFound";
 import Home from "./components/pages/Home.jsx";
 import Dashboard from "./components/pages/Dashboard.jsx";
 import Problems from "./components/pages/Problems.jsx";
-import ProblemDetailPage from "./components/pages/ProblemDetailPage.jsx"; // Import the new page
+import ProblemDetailPage from "./components/pages/ProblemDetailPage.jsx";
+import AddProblemPage from "./components/pages/AddProblemPage.jsx"; // 导入新的页面组件
 import { LoginPage, RegisterPage } from "./components/pages/LoginRegister.jsx";
 
 import {
@@ -22,7 +23,8 @@ const router = createBrowserRouter(
         <Route path="/" element={<Home />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/problems" element={<Problems />} />
-        <Route path="/problem/:problemId" element={<ProblemDetailPage />} />{" "}
+        <Route path="/problem/:problemId" element={<ProblemDetailPage />} />
+        <Route path="/add-problem" element={<AddProblemPage />} /> {/* 新增的添加题目路由 */}
       </Route>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
