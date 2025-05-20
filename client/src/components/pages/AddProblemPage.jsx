@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { post } from "../../utilities";
 import BackButton from "../modules/BackButton";
 
@@ -18,15 +17,11 @@ import IconButton from "@mui/material/IconButton";
 import DeleteIcon from "@mui/icons-material/Delete";
 
 const AddProblemPage = () => {
-  const navigate = useNavigate();
   const [problemData, setProblemData] = useState({
     problem_id: "",
     problem_name: "",
     problem_difficulty: "easy",
     content: "",
-    inputFormat: "",
-    outputFormat: "",
-    constraints: "",
     examples: [{ input: "", output: "", explanation: "" }],
   });
   const [loading, setLoading] = useState(false);
@@ -73,28 +68,21 @@ const AddProblemPage = () => {
     setError("");
     setSuccess("");
 
-    // Basic validation
     if (!problemData.problem_id || !problemData.problem_name || !problemData.content) {
       setError("Problem ID, Name, and Content are required.");
       setLoading(false);
       return;
     }
 
-    post("/api/problem", problemData) // API endpoint from server/api.js
+    post("/api/problem", problemData)
       .then((response) => {
         setLoading(false);
         setSuccess(`Problem "${response.problem_name}" added successfully!`);
-        // Optionally, reset form or navigate
-        // navigate("/problems");
         setProblemData({
-          // Reset form
           problem_id: "",
           problem_name: "",
           problem_difficulty: "easy",
           content: "",
-          inputFormat: "",
-          outputFormat: "",
-          constraints: "",
           examples: [{ input: "", output: "", explanation: "" }],
         });
       })
@@ -161,6 +149,8 @@ const AddProblemPage = () => {
                 </Select>
               </FormControl>
             </Grid>
+          </Grid>
+          <Grid>
             <Grid item xs={12}>
               <TextField
                 margin="normal"
@@ -175,46 +165,8 @@ const AddProblemPage = () => {
                 onChange={handleChange}
               />
             </Grid>
-            <Grid item xs={12}>
-              <TextField
-                margin="normal"
-                fullWidth
-                id="inputFormat"
-                label="Input Format"
-                name="inputFormat"
-                multiline
-                rows={3}
-                value={problemData.inputFormat}
-                onChange={handleChange}
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                margin="normal"
-                fullWidth
-                id="outputFormat"
-                label="Output Format"
-                name="outputFormat"
-                multiline
-                rows={3}
-                value={problemData.outputFormat}
-                onChange={handleChange}
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                margin="normal"
-                fullWidth
-                id="constraints"
-                label="Constraints"
-                name="constraints"
-                multiline
-                rows={3}
-                value={problemData.constraints}
-                onChange={handleChange}
-              />
-            </Grid>
-
+          </Grid>
+          <Grid>
             <Grid item xs={12}>
               <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>
                 Examples

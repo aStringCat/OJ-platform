@@ -12,9 +12,6 @@ const ProblemSchema = new Schema({
       explanation: String,
     },
   ],
-  constraints: String,
-  inputFormat: String,
-  outputFormat: String,
 });
 
 export default model("problem", ProblemSchema);
