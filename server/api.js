@@ -1,5 +1,5 @@
-import express from "express";
-import Problem from "./models/problem.js";
+const express = require("express");
+const Problem = require("./models/problem");
 
 const router = express.Router();
 
@@ -27,9 +27,6 @@ router.post("/problem", (req, res) => {
     problem_difficulty: req.body.problem_difficulty,
     content: req.body.content,
     examples: req.body.examples || [],
-    constraints: req.body.constraints,
-    inputFormat: req.body.inputFormat,
-    outputFormat: req.body.outputFormat,
   });
 
   newProblem
@@ -51,4 +48,4 @@ router.all("*", (req, res) => {
   res.status(404).send({ msg: "API route not found" });
 });
 
-export default router;
+module.exports = router;
