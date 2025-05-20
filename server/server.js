@@ -1,9 +1,12 @@
-import api from "./api";
+import express from "express";
+import api from "./api.js";
 
 const port = 3000;
 const app = express();
 
-app.use("/api", api);
+app.use("/api/", api);
+
+app.use(express.json());
 
 app.use((err, _req, res, _next) => {
   const status = err.status || 500;

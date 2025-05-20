@@ -5,6 +5,16 @@ const ProblemSchema = new Schema({
   problem_name: String,
   problem_difficulty: String,
   content: String,
+  examples: [
+    {
+      input: String,
+      output: String,
+      explanation: String,
+    },
+  ],
+  constraints: String,
+  inputFormat: String,
+  outputFormat: String,
 });
 
 export default model("problem", ProblemSchema);

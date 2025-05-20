@@ -1,52 +1,65 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import ProblemCard from "../modules/ProblemCard";
+import { get } from "../../utilities";
 
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
 import Box from "@mui/material/Box";
 import Paper from "@mui/material/Paper";
+import CircularProgress from "@mui/material/CircularProgress";
 
 const Problems = () => {
   const [problems, setProblems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    const problem1 = {
-      id: "2025A",
-      name: "hello world, this is a very long problem name to test overflow",
-      difficulty: "hard",
-    };
-    const problem2 = {
-      id: "2025B",
-      name: "reverse",
-      difficulty: "hard",
-    };
-    const problem3 = {
-      id: "2025C",
-      name: "sklearn",
-      difficulty: "hard",
-    };
-    const problem4 = {
-      id: "2025D",
-      name: "happy JML",
-      difficulty: "medium",
-    };
-    const problem5 = {
-      id: "2025E",
-      name: "中文にほんごрусский язык😘😋",
-      difficulty: "easy",
-    };
-    const hardcoded = [problem1, problem2, problem3, problem4, problem5];
-    setProblems(hardcoded);
+    get("/api/problems")
+      .then((data) => {
+        setProblems(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch problems:", err);
+        setError("Failed to load problems. Please try again later.");
+        setLoading(false);
+      });
   }, []);
 
+  if (loading) {
+    return (
+      <Container maxWidth={false} sx={{ mt: 4, mb: 4, textAlign: "center" }}>
+        <CircularProgress />
+        <Typography>Loading problems...</Typography>
+      </Container>
+    );
+  }
+
+  if (error) {
+    return (
+      <Container maxWidth={false} sx={{ mt: 4, mb: 4, textAlign: "center" }}>
+        <Typography color="error">{error}</Typography>
+      </Container>
+    );
+  }
+
   const problemsList = problems.map((problem, index) => (
-    <ProblemCard
-      key={`ProblemCard_${problem.id}`}
-      problem_id={problem.id}
-      problem_name={problem.name}
-      problem_difficulty={problem.difficulty}
-      sx={{ backgroundColor: index % 2 === 0 ? "white" : "#f9f9f9" }}
-    />
+    <Link
+      key={`ProblemLink_${problem.problem_id || problem._id}`}
+      to={`/problem/${problem.problem_id}`}
+      style={{ textDecoration: "none", color: "inherit" }}
+    >
+      <ProblemCard
+        problem_id={problem.problem_id}
+        problem_name={problem.problem_name}
+        problem_difficulty={problem.problem_difficulty}
+        sx={{
+          backgroundColor: index % 2 === 0 ? "white" : "#f9f9f9",
+          "&:hover": { backgroundColor: "#f0f0f0", cursor: "pointer" },
+        }}
+      />
+    </Link>
   ));
 
   return (
@@ -56,68 +69,72 @@ const Problems = () => {
           Problem List
         </Typography>
       </Box>
-      <Paper
-        elevation={1}
-        sx={{
-          border: "1px solid #e0e0e0",
-          overflow: "hidden",
-        }}
-      >
-        <Box
+      {problems.length === 0 && !loading ? (
+        <Typography sx={{ textAlign: "center" }}>No problems available at the moment.</Typography>
+      ) : (
+        <Paper
+          elevation={1}
           sx={{
-            display: "flex",
-            alignItems: "center",
-            py: 1.5,
-            fontWeight: "bold",
-            backgroundColor: "#f0f0f0",
-            borderBottom: "1px solid #ddd",
+            border: "1px solid #e0e0e0",
+            overflow: "hidden",
           }}
         >
-          <Typography
-            variant="subtitle1"
+          <Box
             sx={{
-              flexBasis: "20%",
-              textAlign: "left",
+              display: "flex",
+              alignItems: "center",
+              py: 1.5,
               fontWeight: "bold",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-              px: 1.5,
+              backgroundColor: "#f0f0f0",
+              borderBottom: "1px solid #ddd",
             }}
           >
-            ID
-          </Typography>
-          <Typography
-            variant="subtitle1"
-            sx={{
-              flexBasis: "55%",
-              textAlign: "left",
-              fontWeight: "bold",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-              px: 1.5,
-            }}
-          >
-            Name
-          </Typography>
-          <Typography
-            variant="subtitle1"
-            sx={{
-              flexBasis: "25%",
-              textAlign: "right",
-              fontWeight: "bold",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-              px: 1.5,
-            }}
-          >
-            Difficulty
-          </Typography>
-        </Box>
-        <Box sx={{ display: "flex", flexDirection: "column" }}>{problemsList}</Box>
-      </Paper>
+            <Typography
+              variant="subtitle1"
+              sx={{
+                flexBasis: "20%",
+                textAlign: "left",
+                fontWeight: "bold",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                px: 1.5,
+              }}
+            >
+              ID
+            </Typography>
+            <Typography
+              variant="subtitle1"
+              sx={{
+                flexBasis: "55%",
+                textAlign: "left",
+                fontWeight: "bold",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                px: 1.5,
+              }}
+            >
+              Name
+            </Typography>
+            <Typography
+              variant="subtitle1"
+              sx={{
+                flexBasis: "25%",
+                textAlign: "right",
+                fontWeight: "bold",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                px: 1.5,
+              }}
+            >
+              Difficulty
+            </Typography>
+          </Box>
+          <Box sx={{ display: "flex", flexDirection: "column" }}>{problemsList}</Box>
+        </Paper>
+      )}
     </Container>
   );
 };

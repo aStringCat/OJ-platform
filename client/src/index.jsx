@@ -5,6 +5,7 @@ import NotFound from "./components/pages/NotFound";
 import Home from "./components/pages/Home.jsx";
 import Dashboard from "./components/pages/Dashboard.jsx";
 import Problems from "./components/pages/Problems.jsx";
+import ProblemDetailPage from "./components/pages/ProblemDetailPage.jsx"; // Import the new page
 import { LoginPage, RegisterPage } from "./components/pages/LoginRegister.jsx";
 
 import {
@@ -21,9 +22,11 @@ const router = createBrowserRouter(
         <Route path="/" element={<Home />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/problems" element={<Problems />} />
+        <Route path="/problem/:problemId" element={<ProblemDetailPage />} />{" "}
       </Route>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="*" element={<NotFound />} />
     </>
   )
 );
