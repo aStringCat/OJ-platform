@@ -1,12 +1,13 @@
 import express from "express";
+import mongoose from "mongoose";
 import api from "./api.js";
 
 const port = 3000;
 const app = express();
 
-app.use("/api/", api);
-
 app.use(express.json());
+
+app.use("/api", api);
 
 app.use((err, _req, res, _next) => {
   const status = err.status || 500;
@@ -22,6 +23,6 @@ app.use((err, _req, res, _next) => {
   });
 });
 
-server.listen(port, () => {
+app.listen(port, () => {
   console.log(`Server running on port: ${port}`);
 });

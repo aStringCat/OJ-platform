@@ -14,7 +14,7 @@
     "@emotion/styled": "^11.14.0",
     "@mui/icons-material": "^7.1.0",
     "@mui/material": "^7.1.0",
-    "express": "^5.1.0",
+    "express": "^4.19.2",
     "mongoose": "^8.14.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
