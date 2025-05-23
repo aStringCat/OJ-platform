@@ -23,6 +23,7 @@ import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
 
 const drawerWidth = 240;
 
+// ... (openedMixin, closedMixin, StyledDrawer remain the same)
 const openedMixin = (theme) => ({
   width: drawerWidth,
   transition: theme.transitions.create("width", {
@@ -46,13 +47,25 @@ const closedMixin = (theme) => ({
 
 const StyledDrawer = styled(Drawer, { shouldForwardProp: (prop) => prop !== "open" })(
   ({ theme, open }) => ({
+    width: drawerWidth, // Ensure width is applied even when not transitioning for initial render
     flexShrink: 0,
     whiteSpace: "nowrap",
     boxSizing: "border-box",
-    ...(open ? openedMixin(theme) : closedMixin(theme)),
+    ...(open && {
+      // Apply openedMixin styles when open is true
+      ...openedMixin(theme),
+      "& .MuiDrawer-paper": openedMixin(theme),
+    }),
+    ...(!open && {
+      // Apply closedMixin styles when open is false
+      ...closedMixin(theme),
+      "& .MuiDrawer-paper": closedMixin(theme),
+    }),
     "& .MuiDrawer-paper": {
-      ...(open ? openedMixin(theme) : closedMixin(theme)),
-      backgroundColor: "#EDF1F7",
+      // Common paper styles
+      backgroundColor: "#EDF1F7", // Or your theme's paper background
+      boxSizing: "border-box", // Ensure consistent box sizing
+      ...(open ? openedMixin(theme) : closedMixin(theme)), // Apply mixins again for paper specifically
     },
   })
 );
@@ -60,7 +73,7 @@ const StyledDrawer = styled(Drawer, { shouldForwardProp: (prop) => prop !== "ope
 const navList1 = [
   { title: "Dashboard", icon: <DashboardIcon />, path: "/dashboard" },
   { title: "Problems", icon: <ListAltIcon />, path: "/problems" },
-  { title: "My Submissions", icon: <HistoryIcon />, path: "/submissions" },
+  // { title: "My Submissions", icon: <HistoryIcon />, path: "/submissions" }, // Example: could be auth-dependent
   { title: "Contests", icon: <EmojiEventsIcon />, path: "/contests" },
   { title: "Standings", icon: <LeaderboardIcon />, path: "/standings" },
 ];
@@ -71,14 +84,101 @@ const navListActions = [
 
 const navList2 = [
   { title: "User Profile", icon: <AccountCircleIcon />, path: "/profile" },
-  { title: "Settings", icon: <SettingsIcon />, path: "/settings" },
+  // { title: "Settings", icon: <SettingsIcon />, path: "/settings" }, // Example
 ];
 
-const SideNavigation = () => {
+// Accept currentUser as a prop
+const SideNavigation = ({ currentUser }) => {
   const [open, setOpen] = useState(false);
+
+  const commonNavItems = navList1.map((context) => (
+    <ListItem key={context.title} disablePadding sx={{ display: "block" }}>
+      <ListItemButton
+        component={Link}
+        to={context.path}
+        sx={{
+          minHeight: 48,
+          justifyContent: open ? "initial" : "center",
+          px: 2.5,
+        }}
+      >
+        <ListItemIcon
+          sx={{
+            minWidth: 0,
+            mr: open ? 3 : "auto",
+            justifyContent: "center",
+          }}
+        >
+          {context.icon}
+        </ListItemIcon>
+        <ListItemText
+          primary={context.title}
+          sx={{ opacity: open ? 1 : 0, transition: "opacity 0.2s", whiteSpace: "nowrap" }}
+        />
+      </ListItemButton>
+    </ListItem>
+  ));
+
+  const actionNavItems = navListActions.map((context) => (
+    <ListItem key={context.title} disablePadding sx={{ display: "block" }}>
+      <ListItemButton
+        component={Link}
+        to={context.path}
+        sx={{
+          minHeight: 48,
+          justifyContent: open ? "initial" : "center",
+          px: 2.5,
+        }}
+      >
+        <ListItemIcon
+          sx={{
+            minWidth: 0,
+            mr: open ? 3 : "auto",
+            justifyContent: "center",
+          }}
+        >
+          {context.icon}
+        </ListItemIcon>
+        <ListItemText
+          primary={context.title}
+          sx={{ opacity: open ? 1 : 0, transition: "opacity 0.2s", whiteSpace: "nowrap" }}
+        />
+      </ListItemButton>
+    </ListItem>
+  ));
+
+  const userNavItems = navList2.map((context) => (
+    <ListItem key={context.title} disablePadding sx={{ display: "block" }}>
+      <ListItemButton
+        component={Link}
+        to={context.path}
+        sx={{
+          minHeight: 48,
+          justifyContent: open ? "initial" : "center",
+          px: 2.5,
+        }}
+      >
+        <ListItemIcon
+          sx={{
+            minWidth: 0,
+            mr: open ? 3 : "auto",
+            justifyContent: "center",
+          }}
+        >
+          {context.icon}
+        </ListItemIcon>
+        <ListItemText
+          primary={context.title}
+          sx={{ opacity: open ? 1 : 0, transition: "opacity 0.2s", whiteSpace: "nowrap" }}
+        />
+      </ListItemButton>
+    </ListItem>
+  ));
 
   return (
     <Box sx={{ display: "flex" }} zIndex={9}>
+      {" "}
+      {/* zIndex for drawer to be above content but below UserActions potentially */}
       <CssBaseline />
       <StyledDrawer
         variant="permanent"
@@ -86,97 +186,17 @@ const SideNavigation = () => {
         onMouseEnter={() => setOpen(true)}
         onMouseLeave={() => setOpen(false)}
       >
-        <Toolbar />
+        <Toolbar /> {/* Provides spacing for content below app bar if you had one */}
         <Divider />
-        <List>
-          {navList1.map((context) => (
-            <ListItem key={context.title} disablePadding sx={{ display: "block" }}>
-              <ListItemButton
-                component={Link}
-                to={context.path}
-                sx={{
-                  minHeight: 48,
-                  justifyContent: open ? "initial" : "center",
-                  px: 2.5,
-                }}
-              >
-                <ListItemIcon
-                  sx={{
-                    minWidth: 0,
-                    mr: open ? 3 : "auto",
-                    justifyContent: "center",
-                  }}
-                >
-                  {context.icon}
-                </ListItemIcon>
-                <ListItemText
-                  primary={context.title}
-                  sx={{ opacity: open ? 1 : 0, transition: "opacity 0.2s", whiteSpace: "nowrap" }}
-                />
-              </ListItemButton>
-            </ListItem>
-          ))}
-        </List>
+        <List>{commonNavItems}</List>
+        {currentUser && ( // Conditionally render "Actions" section if user is logged in
+          <>
+            <Divider />
+            <List>{actionNavItems}</List>
+          </>
+        )}
         <Divider />
-        <List>
-          {navListActions.map((context) => (
-            <ListItem key={context.title} disablePadding sx={{ display: "block" }}>
-              <ListItemButton
-                component={Link}
-                to={context.path}
-                sx={{
-                  minHeight: 48,
-                  justifyContent: open ? "initial" : "center",
-                  px: 2.5,
-                }}
-              >
-                <ListItemIcon
-                  sx={{
-                    minWidth: 0,
-                    mr: open ? 3 : "auto",
-                    justifyContent: "center",
-                  }}
-                >
-                  {context.icon}
-                </ListItemIcon>
-                <ListItemText
-                  primary={context.title}
-                  sx={{ opacity: open ? 1 : 0, transition: "opacity 0.2s", whiteSpace: "nowrap" }}
-                />
-              </ListItemButton>
-            </ListItem>
-          ))}
-        </List>
-        <Divider />
-        <List>
-          {navList2.map((context) => (
-            <ListItem key={context.title} disablePadding sx={{ display: "block" }}>
-              <ListItemButton
-                component={Link}
-                to={context.path}
-                sx={{
-                  minHeight: 48,
-                  justifyContent: open ? "initial" : "center",
-                  px: 2.5,
-                }}
-              >
-                <ListItemIcon
-                  sx={{
-                    minWidth: 0,
-                    mr: open ? 3 : "auto",
-                    justifyContent: "center",
-                  }}
-                >
-                  {context.icon}
-                </ListItemIcon>
-                <ListItemText
-                  primary={context.title}
-                  sx={{ opacity: open ? 1 : 0, transition: "opacity 0.2s", whiteSpace: "nowrap" }}
-                />
-              </ListItemButton>
-            </ListItem>
-          ))}
-        </List>
+        <List>{userNavItems}</List>
         <Divider />
       </StyledDrawer>
     </Box>

@@ -6,6 +6,8 @@ const express = require("express");
 const mongoose = require("mongoose");
 const path = require("path");
 const api = require("./api");
+const session = require("express-session");
+const MongoStore = require("connect-mongo");
 
 const port = 3000;
 const app = express();
@@ -19,6 +21,22 @@ app.use(validator.checkRoutes);
 
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
+
+app.use(
+  session({
+    secret: "kestrel_oj_super_secret_key",
+    resave: false,
+    saveUninitialized: false,
+    store: MongoStore.create({
+      mongoUrl: "mongodb://localhost:27017/mydatabase",
+      collectionName: "sessions",
+    }),
+    cookie: {
+      httpOnly: true,
+      maxAge: 24 * 60 * 60 * 1000,
+    },
+  })
+);
 
 app.use("/api", api);
 

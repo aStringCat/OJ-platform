@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { post } from "../../utilities";
 import BackButton from "../modules/BackButton";
+import { useAuth } from "../../auth";
+import { Navigate, useLocation } from "react-router-dom";
 
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
@@ -15,8 +17,13 @@ import FormControl from "@mui/material/FormControl";
 import InputLabel from "@mui/material/InputLabel";
 import IconButton from "@mui/material/IconButton";
 import DeleteIcon from "@mui/icons-material/Delete";
+import CircularProgress from "@mui/material/CircularProgress"; // For loading state
+import Alert from "@mui/material/Alert";
 
 const AddProblemPage = () => {
+  const { currentUser, isLoading: authLoading } = useAuth();
+  const location = useLocation();
+
   const [problemData, setProblemData] = useState({
     problem_id: "",
     problem_name: "",
@@ -24,7 +31,7 @@ const AddProblemPage = () => {
     content: "",
     examples: [{ input: "", output: "", explanation: "" }],
   });
-  const [loading, setLoading] = useState(false);
+  const [submitLoading, setSubmitLoading] = useState(false); // Renamed to avoid conflict
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -54,6 +61,7 @@ const AddProblemPage = () => {
   };
 
   const removeExample = (index) => {
+    if (problemData.examples.length <= 1) return; // Prevent removing the last example
     const updatedExamples = [...problemData.examples];
     updatedExamples.splice(index, 1);
     setProblemData((prevData) => ({
@@ -64,20 +72,28 @@ const AddProblemPage = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    setLoading(true);
+    setSubmitLoading(true);
     setError("");
     setSuccess("");
 
     if (!problemData.problem_id || !problemData.problem_name || !problemData.content) {
       setError("Problem ID, Name, and Content are required.");
-      setLoading(false);
+      setSubmitLoading(false);
+      return;
+    }
+    if (problemData.examples.some((ex) => !ex.input || !ex.output)) {
+      setError("All examples must have an input and an output.");
+      setSubmitLoading(false);
       return;
     }
 
     post("/api/problem", problemData)
       .then((response) => {
-        setLoading(false);
-        setSuccess(`Problem "${response.problem_name}" added successfully!`);
+        setSubmitLoading(false);
+        setSuccess(
+          `Problem "${response.problem_name}" (ID: ${response.problem_id}) added successfully!`
+        );
+        // Reset form
         setProblemData({
           problem_id: "",
           problem_name: "",
@@ -87,14 +103,36 @@ const AddProblemPage = () => {
         });
       })
       .catch((err) => {
-        setLoading(false);
-        setError(err.message || "Failed to add problem. Please check console for details.");
+        setSubmitLoading(false);
+        const errorMsg = err.response?.data?.msg || err.message || "Failed to add problem.";
+        setError(errorMsg);
         console.error("Failed to add problem:", err);
       });
   };
 
+  if (authLoading) {
+    return (
+      <Container
+        sx={{
+          textAlign: "center",
+          mt: 5,
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          height: "80vh",
+        }}
+      >
+        <CircularProgress />
+      </Container>
+    );
+  }
+
+  if (!currentUser) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
   return (
-    <Container maxWidth="md" sx={{ mt: 4, mb: 4, position: "relative" }}>
+    <Container maxWidth="md" sx={{ mt: { xs: 8, sm: 4 }, mb: 4, position: "relative" }}>
       <BackButton />
       <Paper elevation={3} sx={{ p: { xs: 2, sm: 3 } }}>
         <Typography
@@ -105,6 +143,16 @@ const AddProblemPage = () => {
         >
           Add New Problem
         </Typography>
+        {error && (
+          <Alert severity="error" sx={{ my: 2 }}>
+            {error}
+          </Alert>
+        )}
+        {success && (
+          <Alert severity="success" sx={{ my: 2 }}>
+            {success}
+          </Alert>
+        )}
         <Box component="form" onSubmit={handleSubmit} noValidate sx={{ mt: 1 }}>
           <Grid container spacing={2}>
             <Grid item xs={12} sm={6}>
@@ -113,7 +161,7 @@ const AddProblemPage = () => {
                 required
                 fullWidth
                 id="problem_id"
-                label="Problem ID"
+                label="Problem ID (e.g., P1001)"
                 name="problem_id"
                 value={problemData.problem_id}
                 onChange={handleChange}
@@ -166,78 +214,75 @@ const AddProblemPage = () => {
               />
             </Grid>
           </Grid>
-          <Grid>
-            <Grid item xs={12}>
-              <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>
-                Examples
-              </Typography>
-              {problemData.examples.map((example, index) => (
-                <Paper key={index} variant="outlined" sx={{ p: 2, mb: 2, position: "relative" }}>
+          {/* Section for Examples */}
+          <Box sx={{ my: 2 }}>
+            {" "}
+            {/* Replaced Grid with Box for this section */}
+            <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>
+              Examples
+            </Typography>
+            {problemData.examples.map((example, index) => (
+              <Paper key={index} variant="outlined" sx={{ p: 2, mb: 2, position: "relative" }}>
+                <Typography variant="subtitle1" gutterBottom>
+                  Example {index + 1}
+                </Typography>
+                {problemData.examples.length > 1 && (
                   <IconButton
                     aria-label="delete example"
                     onClick={() => removeExample(index)}
                     sx={{ position: "absolute", top: 8, right: 8 }}
-                    disabled={problemData.examples.length <= 1}
+                    // disabled={problemData.examples.length <= 1} // Already handled in removeExample
                   >
                     <DeleteIcon />
                   </IconButton>
-                  <TextField
-                    margin="dense"
-                    fullWidth
-                    label={`Example ${index + 1} - Input`}
-                    name="input"
-                    multiline
-                    rows={2}
-                    value={example.input}
-                    onChange={(e) => handleExampleChange(index, e)}
-                  />
-                  <TextField
-                    margin="dense"
-                    fullWidth
-                    label={`Example ${index + 1} - Output`}
-                    name="output"
-                    multiline
-                    rows={2}
-                    value={example.output}
-                    onChange={(e) => handleExampleChange(index, e)}
-                  />
-                  <TextField
-                    margin="dense"
-                    fullWidth
-                    label={`Example ${index + 1} - Explanation (Optional)`}
-                    name="explanation"
-                    multiline
-                    rows={1}
-                    value={example.explanation}
-                    onChange={(e) => handleExampleChange(index, e)}
-                  />
-                </Paper>
-              ))}
-              <Button onClick={addExample} variant="outlined" sx={{ mt: 1 }}>
-                Add Another Example
-              </Button>
-            </Grid>
-          </Grid>
-
-          {error && (
-            <Typography color="error" sx={{ mt: 2, textAlign: "center" }}>
-              {error}
-            </Typography>
-          )}
-          {success && (
-            <Typography color="success.main" sx={{ mt: 2, textAlign: "center" }}>
-              {success}
-            </Typography>
-          )}
+                )}
+                <TextField
+                  margin="dense"
+                  fullWidth
+                  required
+                  label={`Input`}
+                  name="input"
+                  multiline
+                  rows={2}
+                  value={example.input}
+                  onChange={(e) => handleExampleChange(index, e)}
+                />
+                <TextField
+                  margin="dense"
+                  fullWidth
+                  required
+                  label={`Output`}
+                  name="output"
+                  multiline
+                  rows={2}
+                  value={example.output}
+                  onChange={(e) => handleExampleChange(index, e)}
+                />
+                <TextField
+                  margin="dense"
+                  fullWidth
+                  label={`Explanation (Optional)`}
+                  name="explanation"
+                  multiline
+                  rows={1}
+                  value={example.explanation}
+                  onChange={(e) => handleExampleChange(index, e)}
+                />
+              </Paper>
+            ))}
+            <Button onClick={addExample} variant="outlined" sx={{ mt: 1 }}>
+              Add Another Example
+            </Button>
+          </Box>
 
           <Button
             type="submit"
             fullWidth
             variant="contained"
             sx={{ mt: 3, mb: 2 }}
-            disabled={loading}
+            disabled={submitLoading}
           >
-            {loading ? "Adding..." : "Add Problem"}
+            {submitLoading ? <CircularProgress size={24} color="inherit" /> : "Add Problem"}
           </Button>
         </Box>
       </Paper>

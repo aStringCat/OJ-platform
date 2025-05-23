@@ -45,4 +45,4 @@ The frontend is built with React and Vite, utilizing Material UI for components.
     Open your web browser and navigate to:
     `http://localhost:5173`
 
-    API requests from the frontend to `/api` and WebSocket connections to `/socket.io` will be proxied to the backend server running on `http://localhost:3000`.
+    API requests from the frontend to `/api` will be proxied to the backend server running on `http://localhost:3000`.

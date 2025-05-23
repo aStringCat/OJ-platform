@@ -50,8 +50,7 @@ module.exports = {
           );
         }
       });
-
-      routeChecked = true; // only runs once to avoid spam/overhead
+      routeChecked = true;
     }
     next();
   },
