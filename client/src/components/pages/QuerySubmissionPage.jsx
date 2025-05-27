@@ -22,7 +22,7 @@ import {
 } from "@mui/material";
 import BackButton from "../modules/BackButton";
 
-const ITEMS_PER_PAGE = 20;
+const ITEMS_PER_PAGE = 10;
 
 const getStatusColor = (status) => {
   switch (status) {

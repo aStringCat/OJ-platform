@@ -204,10 +204,6 @@ router.post("/submit/:problemId", isAuthenticated, upload.single("codeFile"), as
 
     await newSubmission.save();
 
-    await User.findByIdAndUpdate(userId, {
-      $push: { submissions: newSubmission._id },
-    });
-
     res.status(201).send({
       msg: "Submission received and is pending evaluation.",
       submissionId: newSubmission._id,

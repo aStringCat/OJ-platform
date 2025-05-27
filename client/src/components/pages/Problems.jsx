@@ -8,11 +8,15 @@ import Typography from "@mui/material/Typography";
 import Box from "@mui/material/Box";
 import Paper from "@mui/material/Paper";
 import CircularProgress from "@mui/material/CircularProgress";
+import { Pagination } from "@mui/material";
+
+const ITEMS_PER_PAGE = 10;
 
 const Problems = () => {
   const [problems, setProblems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     get("/api/problems")
@@ -26,6 +30,12 @@ const Problems = () => {
         setLoading(false);
       });
   }, []);
+
+  const handleChangePage = (event, newPage) => {
+    setPage(newPage);
+  };
+
+  const paginatedProblems = problems.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
 
   if (loading) {
     return (
@@ -44,7 +54,7 @@ const Problems = () => {
     );
   }
 
-  const problemsList = problems.map((problem, index) => (
+  const problemsList = paginatedProblems.map((problem, index) => (
     <Link
       key={`ProblemLink_${problem.problem_id || problem._id}`}
       to={`/problem/${problem.problem_id}`}
@@ -135,6 +145,14 @@ const Problems = () => {
           <Box sx={{ display: "flex", flexDirection: "column" }}>{problemsList}</Box>
         </Paper>
       )}
+      <Box sx={{ display: "flex", justifyContent: "center", mt: 3 }}>
+        <Pagination
+          count={Math.ceil(problems.length / ITEMS_PER_PAGE)}
+          page={page}
+          onChange={handleChangePage}
+          color="primary"
+        />
+      </Box>
     </Container>
   );
 };
