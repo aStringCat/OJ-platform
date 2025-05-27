@@ -9,7 +9,7 @@ import TextField from "@mui/material/TextField";
 import Button from "@mui/material/Button";
 import Paper from "@mui/material/Paper";
 import Divider from "@mui/material/Divider";
-import Alert from "@mui/material/Alert"; // For displaying errors
+import Alert from "@mui/material/Alert";
 import CircularProgress from "@mui/material/CircularProgress";
 
 export const LoginPage = () => {
@@ -20,7 +20,6 @@ export const LoginPage = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  // Default to dashboard after login, or to the 'from' location if redirected
   const from = location.state?.from?.pathname || "/dashboard";
 
   const handleSubmit = async (e) => {
@@ -29,12 +28,11 @@ export const LoginPage = () => {
     setLoading(true);
     try {
       await login(email, password);
-      navigate(from, { replace: true });
+      navigate(from, { replace: true, state: location.state?.from?.state }); // Persist nested state
     } catch (err) {
       const errorMsg =
-        err.response?.data?.msg || err.message || "Failed to login. Please check your credentials.";
+        err.data?.msg || err.message || "Failed to login. Please check your credentials.";
       setError(errorMsg);
-      // console.error("Login error:", err);
     } finally {
       setLoading(false);
     }
@@ -61,13 +59,13 @@ export const LoginPage = () => {
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          gap: 2, // Adjusted gap
+          gap: 2,
           width: "100%",
           maxWidth: "400px",
           position: "relative",
         }}
       >
-        <BackButton />
+        <BackButton sx={{ top: { xs: 12, sm: 16 }, left: { xs: 12, sm: 16 } }} />
         <Typography variant="h5" component="h1" gutterBottom sx={{ fontWeight: "bold", mt: 3 }}>
           Welcome to Kestrel
         </Typography>
@@ -131,11 +129,9 @@ export const LoginPage = () => {
               component="span"
               sx={{
                 fontWeight: "bold",
-                color: "secondary.main", // Ensure your theme has secondary.main
+                color: "secondary.main",
                 cursor: "pointer",
-                "&:hover": {
-                  textDecoration: "underline",
-                },
+                "&:hover": { textDecoration: "underline" },
               }}
             >
               Sign up
@@ -169,14 +165,11 @@ export const RegisterPage = () => {
     setLoading(true);
     try {
       await register(name, email, password);
-      navigate(from, { replace: true });
+      navigate(from, { replace: true, state: location.state?.from?.state }); // Persist nested state
     } catch (err) {
       const errorMsg =
-        err.response?.data?.msg ||
-        err.message ||
-        "Failed to register. The email might already be in use.";
+        err.data?.msg || err.message || "Failed to register. The email might already be in use.";
       setError(errorMsg);
-      // console.error("Registration error:", err);
     } finally {
       setLoading(false);
     }
@@ -203,13 +196,13 @@ export const RegisterPage = () => {
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          gap: 2, // Adjusted gap
+          gap: 2,
           width: "100%",
           maxWidth: "400px",
           position: "relative",
         }}
       >
-        <BackButton />
+        <BackButton sx={{ top: { xs: 12, sm: 16 }, left: { xs: 12, sm: 16 } }} />
         <Typography variant="h5" component="h1" gutterBottom sx={{ fontWeight: "bold", mt: 3 }}>
           Create Account
         </Typography>
@@ -285,11 +278,9 @@ export const RegisterPage = () => {
               component="span"
               sx={{
                 fontWeight: "bold",
-                color: "secondary.main", // Ensure your theme has secondary.main
+                color: "secondary.main",
                 cursor: "pointer",
-                "&:hover": {
-                  textDecoration: "underline",
-                },
+                "&:hover": { textDecoration: "underline" },
               }}
             >
               Log In

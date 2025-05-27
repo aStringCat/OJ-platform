@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react"; // Added useRef
 import { useParams } from "react-router-dom";
-import { get, post } from "../../utilities"; // Assuming post utility for submission
+import { get, post } from "../../utilities";
 import BackButton from "../modules/BackButton";
 
 import Box from "@mui/material/Box";
@@ -8,14 +8,14 @@ import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
 import Paper from "@mui/material/Paper";
 import CircularProgress from "@mui/material/CircularProgress";
-import TextField from "@mui/material/TextField";
 import Button from "@mui/material/Button";
 import Select from "@mui/material/Select";
 import MenuItem from "@mui/material/MenuItem";
 import FormControl from "@mui/material/FormControl";
 import InputLabel from "@mui/material/InputLabel";
-import Grid from "@mui/material/Grid"; // For layout
-import Divider from "@mui/material/Divider"; // For separation
+import Grid from "@mui/material/Grid";
+import Divider from "@mui/material/Divider";
+import CloudUploadIcon from "@mui/icons-material/CloudUpload"; // For visual cue
 
 const ProblemDetailPage = () => {
   const { problemId } = useParams();
@@ -23,9 +23,14 @@ const ProblemDetailPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const [code, setCode] = useState("");
-  const [language, setLanguage] = useState("python"); // Default language
+  const [language, setLanguage] = useState("python");
+  const [selectedFile, setSelectedFile] = useState(null);
   const [submissionStatus, setSubmissionStatus] = useState("");
+  const [isDraggingOver, setIsDraggingOver] = useState(false); // For drag-and-drop visual state
+  const fileInputRef = useRef(null); // To potentially clear the input
+
+  const allowedFileTypes = [".py", ".js", ".java", ".cpp", ".c", ".txt"];
+  const acceptedFileTypesString = allowedFileTypes.join(",");
 
   useEffect(() => {
     setLoading(true);
@@ -43,26 +48,101 @@ const ProblemDetailPage = () => {
       });
   }, [problemId]);
 
-  const handleCodeChange = (event) => {
-    setCode(event.target.value);
+  const processAndSetFile = (file) => {
+    if (file) {
+      const fileExtension = file.name.substring(file.name.lastIndexOf(".")).toLowerCase();
+      if (!allowedFileTypes.includes(fileExtension)) {
+        setSubmissionStatus(
+          `Invalid file type: "${fileExtension}". Allowed types: ${allowedFileTypes.join(", ")}`
+        );
+        setSelectedFile(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = ""; // Clear the file input
+        }
+        return;
+      }
+      // Basic check for file size (e.g., 5MB limit, same as backend)
+      if (file.size > 5 * 1024 * 1024) {
+        setSubmissionStatus(`File is too large. Maximum size is 5MB.`);
+        setSelectedFile(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
+        return;
+      }
+
+      setSelectedFile(file);
+      setSubmissionStatus("");
+    }
+  };
+
+  const handleFileChange = (event) => {
+    if (event.target.files && event.target.files[0]) {
+      processAndSetFile(event.target.files[0]);
+    }
   };
 
   const handleLanguageChange = (event) => {
     setLanguage(event.target.value);
   };
 
-  const handleSubmitCode = () => {
+  const handleSubmitCode = async () => {
+    if (!selectedFile) {
+      setSubmissionStatus("Please select a code file to submit.");
+      return;
+    }
+
     setSubmissionStatus("Submitting...");
-    post(`/api/submit/${problemId}`, { code, language })
-      .then((response) => {
-        console.log("Submission successful:", response);
-        setSubmissionStatus(`Submission successful! (Mock response: ${response.msg})`);
-        // Potentially redirect to submissions page or show result
-      })
-      .catch((err) => {
-        console.error("Submission failed:", err);
-        setSubmissionStatus("Submission failed. Please try again.");
-      });
+    const formData = new FormData();
+    formData.append("language", language);
+    formData.append("codeFile", selectedFile);
+
+    try {
+      const response = await post(`/api/submit/${problemId}`, formData);
+      console.log("Submission successful:", response);
+      setSubmissionStatus(`Submission successful! Server says: ${response.msg}`);
+      setSelectedFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ""; // Clear the file input after successful submission
+      }
+    } catch (err) {
+      console.error("Submission failed:", err);
+      const errorMsg = err.data?.msg || err.message || "Submission failed. Please try again.";
+      setSubmissionStatus(errorMsg);
+    }
+  };
+
+  // Drag and Drop Handlers
+  const handleDragOver = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    // setIsDraggingOver(true); // Can set true here, or in handleDragEnter for more specific zone highlighting
+  };
+
+  const handleDragEnter = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDraggingOver(true);
+  };
+
+  const handleDragLeave = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    // Check if the leave target is outside the drop zone
+    if (event.currentTarget.contains(event.relatedTarget)) {
+      return;
+    }
+    setIsDraggingOver(false);
+  };
+
+  const handleDrop = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDraggingOver(false);
+    if (event.dataTransfer.files && event.dataTransfer.files.length > 0) {
+      processAndSetFile(event.dataTransfer.files[0]); // Process the first dropped file
+      event.dataTransfer.clearData();
+    }
   };
 
   if (loading) {
@@ -96,9 +176,12 @@ const ProblemDetailPage = () => {
   }
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4, position: "relative" }}>
-      <BackButton />
-      <Paper elevation={3} sx={{ p: 3 }}>
+    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+      {/* Paper is the relative anchor */}{" "}
+      <Paper elevation={3} sx={{ p: { xs: 2, sm: 3 }, position: "relative" }}>
+        {" "}
+        {/* Added position: relative */}
+        <BackButton sx={{ top: { xs: 16, sm: 24 }, left: { xs: 16, sm: 24 } }} />
         <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: "bold" }}>
           {problem.problem_name} ({problem.problem_id})
         </Typography>
@@ -119,7 +202,6 @@ const ProblemDetailPage = () => {
           </span>
         </Typography>
         <Divider sx={{ my: 2 }} />
-
         <Box sx={{ mb: 3 }}>
           <Typography variant="h6" gutterBottom>
             Description
@@ -128,7 +210,7 @@ const ProblemDetailPage = () => {
             {problem.content || "No description provided."}
           </Typography>
         </Box>
-
+        {/* Input/Output Format, Constraints, Examples (assuming these are styled adequately) */}
         {problem.inputFormat && (
           <Box sx={{ mb: 3 }}>
             <Typography variant="h6" gutterBottom>
@@ -139,7 +221,6 @@ const ProblemDetailPage = () => {
             </Typography>
           </Box>
         )}
-
         {problem.outputFormat && (
           <Box sx={{ mb: 3 }}>
             <Typography variant="h6" gutterBottom>
@@ -150,7 +231,6 @@ const ProblemDetailPage = () => {
             </Typography>
           </Box>
         )}
-
         {problem.constraints && (
           <Box sx={{ mb: 3 }}>
             <Typography variant="h6" gutterBottom>
@@ -161,7 +241,6 @@ const ProblemDetailPage = () => {
             </Typography>
           </Box>
         )}
-
         {problem.examples && problem.examples.length > 0 && (
           <Box sx={{ mb: 3 }}>
             <Typography variant="h6" gutterBottom>
@@ -171,7 +250,7 @@ const ProblemDetailPage = () => {
               <Paper
                 key={index}
                 variant="outlined"
-                sx={{ p: 2, mb: 2, backgroundColor: "#f9f9f9" }}
+                sx={{ p: 2, mb: 2, backgroundColor: "grey.100" }}
               >
                 <Typography variant="subtitle2" sx={{ fontWeight: "bold" }}>
                   Example {index + 1}:
@@ -179,39 +258,47 @@ const ProblemDetailPage = () => {
                 <Typography variant="body2" sx={{ fontWeight: "medium", mt: 1 }}>
                   Input:
                 </Typography>
-                <Typography
+                <Box
                   component="pre"
                   sx={{
                     whiteSpace: "pre-wrap",
-                    backgroundColor: "#eee",
+                    wordBreak: "break-all",
+                    backgroundColor: "grey.200",
                     p: 1,
                     borderRadius: 1,
                     mt: 0.5,
+                    fontFamily: "monospace",
                   }}
                 >
                   {example.input}
-                </Typography>
+                </Box>
                 <Typography variant="body2" sx={{ fontWeight: "medium", mt: 1 }}>
                   Output:
                 </Typography>
-                <Typography
+                <Box
                   component="pre"
                   sx={{
                     whiteSpace: "pre-wrap",
-                    backgroundColor: "#eee",
+                    wordBreak: "break-all",
+                    backgroundColor: "grey.200",
                     p: 1,
                     borderRadius: 1,
                     mt: 0.5,
+                    fontFamily: "monospace",
                   }}
                 >
                   {example.output}
-                </Typography>
+                </Box>
                 {example.explanation && (
                   <>
                     <Typography variant="body2" sx={{ fontWeight: "medium", mt: 1 }}>
                       Explanation:
                     </Typography>
-                    <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", mt: 0.5 }}>
+                    <Typography
+                      variant="body2"
+                      component="div"
+                      sx={{ whiteSpace: "pre-wrap", mt: 0.5 }}
+                    >
                       {example.explanation}
                     </Typography>
                   </>
@@ -220,14 +307,16 @@ const ProblemDetailPage = () => {
             ))}
           </Box>
         )}
-
         <Divider sx={{ my: 3 }} />
-
         <Typography variant="h5" component="h2" gutterBottom>
           Submit Solution
         </Typography>
-        <Grid container spacing={2} alignItems="flex-end">
-          <Grid item xs={12} sm={3}>
+        <Grid container spacing={2} alignItems="flex-start">
+          {" "}
+          {/* Changed to flex-start */}
+          <Grid item xs={12} sm={4} md={3}>
+            {" "}
+            {/* Adjusted grid size */}
             <FormControl fullWidth>
               <InputLabel id="language-select-label">Language</InputLabel>
               <Select
@@ -244,24 +333,72 @@ const ProblemDetailPage = () => {
               </Select>
             </FormControl>
           </Grid>
-          <Grid item xs={12}>
-            <TextField
-              label="Enter your code here"
-              multiline
-              rows={15}
-              value={code}
-              onChange={handleCodeChange}
-              variant="outlined"
-              fullWidth
-              InputProps={{ sx: { fontFamily: "monospace" } }} // Monospace font for code
-            />
+          <Grid
+            item
+            xs={12}
+            onDragOver={handleDragOver}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            sx={{ mt: { xs: 1, sm: 0 } }} // Ensure spacing is good
+          >
+            <Box
+              component="label" // Make the whole box clickable for the input
+              htmlFor="code-file-input"
+              sx={{
+                border: isDraggingOver ? "2px dashed primary.main" : "2px dashed grey.500",
+                borderRadius: 1,
+                p: { xs: 2, sm: 4 }, // Responsive padding
+                textAlign: "center",
+                cursor: "pointer",
+                backgroundColor: isDraggingOver ? "action.hover" : "transparent",
+                transition: "border-color 0.3s, background-color 0.3s",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                minHeight: "150px", // Ensure a decent drop area height
+              }}
+            >
+              <input
+                id="code-file-input"
+                ref={fileInputRef}
+                type="file"
+                hidden
+                onChange={handleFileChange}
+                accept={acceptedFileTypesString}
+              />
+              <CloudUploadIcon
+                sx={{ fontSize: 48, mb: 1, color: isDraggingOver ? "primary.main" : "grey.600" }}
+              />
+              <Typography
+                variant="h6"
+                sx={{ color: isDraggingOver ? "primary.main" : "text.primary" }}
+              >
+                Drag & drop your code file here
+              </Typography>
+              <Typography variant="body1" sx={{ color: "text.secondary" }}>
+                or click to select a file
+              </Typography>
+              <Typography variant="caption" sx={{ color: "text.secondary", mt: 0.5 }}>
+                Allowed types: {allowedFileTypes.join(", ")}. Max 5MB.
+              </Typography>
+            </Box>
+            {selectedFile && (
+              <Typography variant="body2" sx={{ mt: 1, textAlign: "center" }}>
+                Selected file: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(2)} KB)
+              </Typography>
+            )}
           </Grid>
-          <Grid item xs={12} sm="auto">
+          <Grid item xs={12} sx={{ textAlign: "center", mt: 2 }}>
+            {" "}
+            {/* Center submit button */}
             <Button
               variant="contained"
               color="primary"
               onClick={handleSubmitCode}
-              sx={{ mt: { xs: 2, sm: 0 } }}
+              disabled={!selectedFile} // Disable if no file is selected
+              sx={{ width: { xs: "100%", sm: "auto" }, minWidth: "150px" }}
             >
               Submit Code
             </Button>
@@ -272,7 +409,14 @@ const ProblemDetailPage = () => {
             variant="body2"
             sx={{
               mt: 2,
-              color: submissionStatus.includes("failed") ? "error.main" : "success.main",
+              textAlign: "center",
+              color:
+                submissionStatus.toLowerCase().includes("failed") ||
+                submissionStatus.toLowerCase().includes("invalid") ||
+                submissionStatus.toLowerCase().includes("select a") ||
+                submissionStatus.toLowerCase().includes("too large")
+                  ? "error.main"
+                  : "success.main",
             }}
           >
             {submissionStatus}

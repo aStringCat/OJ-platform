@@ -6,7 +6,7 @@ import Paper from "@mui/material/Paper";
 import Box from "@mui/material/Box";
 import Avatar from "@mui/material/Avatar";
 import CircularProgress from "@mui/material/CircularProgress";
-import BackButton from "../modules/BackButton"; // Assuming you want a back button
+import BackButton from "../modules/BackButton";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
 import ListItemText from "@mui/material/ListItemText";
@@ -50,10 +50,18 @@ const ProfilePage = () => {
   };
 
   return (
-    <Container maxWidth="md" sx={{ mt: { xs: 2, sm: 4 }, mb: 4, position: "relative" }}>
-      <BackButton />
-      <Paper elevation={3} sx={{ p: { xs: 2, sm: 4 }, mt: { xs: 6, sm: 0 } }}>
-        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", mb: 3 }}>
+    <Container maxWidth="md" sx={{ mt: { xs: 2, sm: 4 }, mb: 4 }}>
+      <Paper elevation={3} sx={{ p: { xs: 2, sm: 4 }, position: "relative" }}>
+        <BackButton sx={{ top: { xs: 16, sm: 24 }, left: { xs: 16, sm: 24 } }} />
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            mb: 3,
+            pt: { xs: 4, sm: 0 } /* Add padding top if back button might overlap title */,
+          }}
+        >
           <Avatar
             sx={{ width: 100, height: 100, mb: 2, bgcolor: "primary.main", fontSize: "3rem" }}
           >

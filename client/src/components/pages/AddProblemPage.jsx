@@ -17,7 +17,7 @@ import FormControl from "@mui/material/FormControl";
 import InputLabel from "@mui/material/InputLabel";
 import IconButton from "@mui/material/IconButton";
 import DeleteIcon from "@mui/icons-material/Delete";
-import CircularProgress from "@mui/material/CircularProgress"; // For loading state
+import CircularProgress from "@mui/material/CircularProgress";
 import Alert from "@mui/material/Alert";
 
 const AddProblemPage = () => {
@@ -31,7 +31,7 @@ const AddProblemPage = () => {
     content: "",
     examples: [{ input: "", output: "", explanation: "" }],
   });
-  const [submitLoading, setSubmitLoading] = useState(false); // Renamed to avoid conflict
+  const [submitLoading, setSubmitLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -61,7 +61,7 @@ const AddProblemPage = () => {
   };
 
   const removeExample = (index) => {
-    if (problemData.examples.length <= 1) return; // Prevent removing the last example
+    if (problemData.examples.length <= 1) return;
     const updatedExamples = [...problemData.examples];
     updatedExamples.splice(index, 1);
     setProblemData((prevData) => ({
@@ -93,7 +93,6 @@ const AddProblemPage = () => {
         setSuccess(
           `Problem "${response.problem_name}" (ID: ${response.problem_id}) added successfully!`
         );
-        // Reset form
         setProblemData({
           problem_id: "",
           problem_name: "",
@@ -104,7 +103,7 @@ const AddProblemPage = () => {
       })
       .catch((err) => {
         setSubmitLoading(false);
-        const errorMsg = err.response?.data?.msg || err.message || "Failed to add problem.";
+        const errorMsg = err.data?.msg || err.message || "Failed to add problem.";
         setError(errorMsg);
         console.error("Failed to add problem:", err);
       });
@@ -132,14 +131,18 @@ const AddProblemPage = () => {
   }
 
   return (
-    <Container maxWidth="md" sx={{ mt: { xs: 8, sm: 4 }, mb: 4, position: "relative" }}>
-      <BackButton />
-      <Paper elevation={3} sx={{ p: { xs: 2, sm: 3 } }}>
+    <Container maxWidth="md" sx={{ mt: { xs: 2, sm: 4 }, mb: 4 }}>
+      <Paper elevation={3} sx={{ p: { xs: 2, sm: 3 }, position: "relative" }}>
+        <BackButton sx={{ top: { xs: 16, sm: 24 }, left: { xs: 16, sm: 24 } }} />
         <Typography
           variant="h4"
           component="h1"
           gutterBottom
-          sx={{ fontWeight: "bold", textAlign: "center" }}
+          sx={{
+            fontWeight: "bold",
+            textAlign: "center",
+            pt: { xs: 4, sm: 0 },
+          }} /* Padding top to avoid overlap with back button */
         >
           Add New Problem
         </Typography>
@@ -214,10 +217,7 @@ const AddProblemPage = () => {
               />
             </Grid>
           </Grid>
-          {/* Section for Examples */}
           <Box sx={{ my: 2 }}>
-            {" "}
-            {/* Replaced Grid with Box for this section */}
             <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>
               Examples
             </Typography>
@@ -231,7 +231,6 @@ const AddProblemPage = () => {
                     aria-label="delete example"
                     onClick={() => removeExample(index)}
                     sx={{ position: "absolute", top: 8, right: 8 }}
-                    // disabled={problemData.examples.length <= 1} // Already handled in removeExample
                   >
                     <DeleteIcon />
                   </IconButton>
@@ -274,7 +273,6 @@ const AddProblemPage = () => {
               Add Another Example
             </Button>
           </Box>
-
           <Button
             type="submit"
             fullWidth
@@ -289,5 +287,4 @@ const AddProblemPage = () => {
     </Container>
   );
 };
-
 export default AddProblemPage;
