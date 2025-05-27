@@ -193,10 +193,12 @@ router.post("/submit/:problemId", isAuthenticated, upload.single("codeFile"), as
       return res.status(404).send({ msg: "Problem not found." });
     }
 
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+
     const newSubmission = new Submission({
-      user: userId,
+      user: userObjectId, // 使用转换后的 ObjectId
       problem: problem._id,
-      code, // 使用从文件中读取的代码
+      code,
       language,
     });
 

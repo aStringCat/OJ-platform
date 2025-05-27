@@ -2,8 +2,16 @@ const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 
 const SubmissionSchema = new mongoose.Schema({
-  user_id: String,
-  problem_id: String,
+  user: {
+    type: Schema.Types.ObjectId,
+    ref: "user",
+    required: true,
+  },
+  problem: {
+    type: Schema.Types.ObjectId,
+    ref: "problem",
+    required: true,
+  },
   code: {
     type: String,
     required: true,
