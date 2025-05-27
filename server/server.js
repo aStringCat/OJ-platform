@@ -10,7 +10,7 @@ const session = require("express-session");
 const MongoStore = require("connect-mongo");
 
 const port = 3000;
-const app = express();
+const app = express(); 
 
 mongoose
   .connect("mongodb://localhost:27017/mydatabase", {})
