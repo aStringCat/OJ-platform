@@ -51,11 +51,12 @@ export async function get(endpoint, params = {}) {
 // Helper code to make a post request. Default parameter of empty JSON Object for params.
 // Returns a Promise to a JSON Object.
 export async function post(endpoint, params = {}) {
+  const isFormData = params instanceof FormData;
   try {
     const res = await fetch(endpoint, {
       method: "post",
-      headers: { "Content-type": "application/json" },
-      body: JSON.stringify(params),
+      headers: isFormData ? {} : { "Content-type": "application/json" },
+      body: isFormData ? params : JSON.stringify(params),
     });
     return convertToJSON(res);
   } catch (error) {

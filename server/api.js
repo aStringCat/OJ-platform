@@ -1,8 +1,11 @@
 const express = require("express");
 const Problem = require("./models/problem");
 const User = require("./models/user");
-const Submission = require("./model/submission");
+const Submission = require("./models/submission");
 const bcrypt = require("bcryptjs");
+const multer = require("multer");
+
+const upload = multer({ storage: multer.memoryStorage() });
 const router = express.Router();
 
 const isAuthenticated = (req, res, next) => {
@@ -165,19 +168,114 @@ router.post("/problem", isAuthenticated, (req, res) => {
 });
 
 // Protected route: Submit solution
-router.post("/submit/:problemId", isAuthenticated, (req, res) => {
-  // Added isAuthenticated middleware
+router.post("/submit/:problemId", isAuthenticated, upload.single("codeFile"), async (req, res) => {
   const { problemId } = req.params;
-  const { code, language } = req.body;
-  // console.log(`Submission for problem ${problemId} by user ${req.session.userId}: Language: ${language}`);
-  // console.log("Code:", code);
-  // TODO: Implement actual code submission and judging logic
-  res.status(200).send({
-    msg: "Submission received (mock response)",
-    problemId,
-    language,
-    userId: req.session.userId,
-  });
+  // `language` 字段仍然从 req.body 中获取'language' 字段仍然从 req.body 中获取
+  const { language } = req.body;
+  const userId = req.session.userId;
+
+  // 检查文件是否上传
+  if (!req.file) {
+    return res.status(400).send({ msg: "No code file was uploaded." });
+  }
+
+  // 从内存中的文件 Buffer 读取代码
+  const code = req.file.buffer.toString("utf-8");
+
+  if (!code || !language) {
+    return res.status(400).send({ msg: "Code (from file) and language are required." });
+  }
+
+  try {
+    const problem = await Problem.findOne({ problem_id: problemId });
+    if (!problem) {
+      return res.status(404).send({ msg: "Problem not found." });
+    }
+
+    const newSubmission = new Submission({
+      user: userId,
+      problem: problem._id,
+      code, // 使用从文件中读取的代码
+      language,
+    });
+
+    await newSubmission.save();
+
+    await User.findByIdAndUpdate(userId, {
+      $push: { submissions: newSubmission._id },
+    });
+
+    res.status(201).send({
+      msg: "Submission received and is pending evaluation.",
+      submissionId: newSubmission._id,
+    });
+  } catch (err) {
+    console.error("Submission error:", err);
+    res.status(500).send({ msg: "Server error during submission.", error: err.message });
+  }
+});
+
+// Get all submissions for the logged-in user
+router.get("/submissions", isAuthenticated, async (req, res) => {
+  try {
+    const submissions = await Submission.find({ user: req.session.userId })
+      .sort({ createdAt: -1 }) // Sort by most recent first
+      .populate("problem", "problem_id problem_name problem_difficulty"); // Populate problem details
+
+    res.status(200).send(submissions);
+  } catch (err) {
+    console.error("Error fetching submissions:", err);
+    res.status(500).send({ msg: "Server error while fetching submissions.", error: err.message });
+  }
+});
+
+// Get a single submission's details
+// This allows a user to view their own past submission details
+router.get("/submission/:submissionId", isAuthenticated, async (req, res) => {
+  try {
+    const submission = await Submission.findById(req.params.submissionId).populate(
+      "problem",
+      "problem_id problem_name"
+    );
+
+    if (!submission) {
+      return res.status(404).send({ msg: "Submission not found." });
+    }
+
+    // Ensure the user is requesting their own submission
+    if (submission.user.toString() !== req.session.userId) {
+      return res.status(403).send({ msg: "Forbidden: You do not have access to this submission." });
+    }
+
+    res.status(200).send(submission);
+  } catch (err) {
+    console.error("Error fetching submission:", err);
+    res.status(500).send({ msg: "Server error while fetching submission.", error: err.message });
+  }
+});
+
+// Endpoint for a hypothetical judging service to fetch the next submission to evaluate.
+// This provides the "space" for the judging logic.
+router.get("/submissions/next_to_judge", async (req, res) => {
+  // In a real system, this endpoint should be protected (e.g., by IP or a secret key)
+  try {
+    const submission = await Submission.findOneAndUpdate(
+      { status: "Pending" }, // Find a pending submission
+      { $set: { status: "Judging" } }, // Set its status to Judging to prevent race conditions
+      { sort: { createdAt: 1 }, new: true } // Get the oldest one and return the updated document
+    ).populate("problem"); // Populate the full problem details for the judge
+
+    if (!submission) {
+      return res.status(200).send({ msg: "No pending submissions to judge." });
+    }
+
+    res.status(200).send(submission);
+  } catch (err) {
+    console.error("Error fetching submission for judging:", err);
+    res
+      .status(500)
+      .send({ msg: "Server error while fetching submission for judging.", error: err.message });
+  }
 });
 
 router.all("*", (req, res) => {
