@@ -12,6 +12,9 @@ const ProblemSchema = new mongoose.Schema({
       explanation: String,
     },
   ],
-});
+},
+{ timestamps: true }
+);
+
 
 module.exports = mongoose.model("problem", ProblemSchema);

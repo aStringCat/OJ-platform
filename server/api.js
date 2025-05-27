@@ -126,6 +126,7 @@ router.post("/logout", (req, res) => {
 // --- Problem Routes (Existing) ---
 router.get("/problems", (_req, res) => {
   Problem.find({})
+    .sort({ createdAt: -1 })
     .then((problems) => res.send(problems))
     .catch((err) => res.status(500).send({ msg: "Error fetching problems", error: err }));
 });
