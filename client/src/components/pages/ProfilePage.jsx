@@ -1,5 +1,5 @@
 import { useAuth } from "../../auth";
-import { Navigate, useLocation } from "react-router-dom";
+import { Navigate, useLocation ,Link} from "react-router-dom";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
 import Paper from "@mui/material/Paper";
@@ -11,9 +11,11 @@ import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
 import ListItemText from "@mui/material/ListItemText";
 import ListItemIcon from "@mui/material/ListItemIcon";
+import ListItemButton from "@mui/material/ListItemButton";
 import Divider from "@mui/material/Divider";
 import EmailIcon from "@mui/icons-material/Email";
 import BadgeIcon from "@mui/icons-material/Badge"; // For User ID
+import HistoryEduIcon from "@mui/icons-material/History"
 
 const ProfilePage = () => {
   const { currentUser, isLoading } = useAuth();
@@ -86,6 +88,17 @@ const ProfilePage = () => {
             </ListItemIcon>
             <ListItemText primary="User ID" secondary={currentUser._id} />
           </ListItem>
+          {/* INCREMENT START */}
+          <Divider component="li" />
+          <ListItem disablePadding>
+            <ListItemButton component={Link} to="/submissions">
+              <ListItemIcon>
+                <HistoryEduIcon />
+              </ListItemIcon>
+              <ListItemText primary="My Submissions" />
+            </ListItemButton>
+          </ListItem>
+          {/* INCREMENT END */}
           {/* Add more profile details here as needed */}
         </List>
       </Paper>

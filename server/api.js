@@ -4,6 +4,7 @@ const User = require("./models/user");
 const Submission = require("./models/submission");
 const bcrypt = require("bcryptjs");
 const multer = require("multer");
+const mongoose = require("mongoose");
 
 const upload = multer({ storage: multer.memoryStorage() });
 const router = express.Router();
@@ -218,9 +219,12 @@ router.post("/submit/:problemId", isAuthenticated, upload.single("codeFile"), as
 // Get all submissions for the logged-in user
 router.get("/submissions", isAuthenticated, async (req, res) => {
   try {
-    const submissions = await Submission.find({ user: req.session.userId })
-      .sort({ createdAt: -1 }) // Sort by most recent first
-      .populate("problem", "problem_id problem_name problem_difficulty"); // Populate problem details
+    // 将 session 中的字符串 ID 转换为 ObjectId 类型
+    const userId = new mongoose.Types.ObjectId(req.session.userId);
+
+    const submissions = await Submission.find({ user: userId }) // 使用转换后的ID进行查询
+      .sort({ createdAt: -1 })
+      .populate("problem", "problem_id problem_name problem_difficulty");
 
     res.status(200).send(submissions);
   } catch (err) {
