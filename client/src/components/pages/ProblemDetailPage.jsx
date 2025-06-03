@@ -1,394 +1,430 @@
-import { useState } from "react";
-import { post } from "../../utilities";
+import { useEffect, useState, useRef } from "react"; // Added useRef
+import { useParams } from "react-router-dom";
+import { get, post } from "../../utilities";
 import BackButton from "../modules/BackButton";
-import { useAuth } from "../../auth";
-import { Navigate, useLocation } from "react-router-dom";
 
+import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
 import Paper from "@mui/material/Paper";
-import TextField from "@mui/material/TextField";
+import CircularProgress from "@mui/material/CircularProgress";
 import Button from "@mui/material/Button";
-import Box from "@mui/material/Box";
-import Grid from "@mui/material/Grid";
 import Select from "@mui/material/Select";
 import MenuItem from "@mui/material/MenuItem";
 import FormControl from "@mui/material/FormControl";
 import InputLabel from "@mui/material/InputLabel";
-import IconButton from "@mui/material/IconButton";
-import DeleteIcon from "@mui/icons-material/Delete";
-import CircularProgress from "@mui/material/CircularProgress";
-import Alert from "@mui/material/Alert";
-import LoadingSpinner from "../modules/LoadingSpinner";
+import Grid from "@mui/material/Grid";
+import Divider from "@mui/material/Divider";
+import CloudUploadIcon from "@mui/icons-material/CloudUpload"; // For visual cue
 
-const AddProblemPage = () => {
-  const { currentUser, isLoading: authLoading } = useAuth();
-  const location = useLocation();
+const ProblemDetailPage = () => {
+  const { problemId } = useParams();
+  const [problem, setProblem] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const initialProblemData = {
-    problem_id: "",
-    problem_name: "",
-    problem_difficulty: "easy",
-    content: "",
-    examples: [{ input: "", output: "", explanation: "" }],
-    cases: [{ input: "", output: "" }], // Renamed from testCases
-  };
+  const [language, setLanguage] = useState("python");
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [submissionStatus, setSubmissionStatus] = useState("");
+  const [isDraggingOver, setIsDraggingOver] = useState(false); // For drag-and-drop visual state
+  const fileInputRef = useRef(null); // To potentially clear the input
 
-  const [problemData, setProblemData] = useState(initialProblemData);
-  const [submitLoading, setSubmitLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const allowedFileTypes = [".py", ".js", ".java", ".cpp", ".c", ".txt"];
+  const acceptedFileTypesString = allowedFileTypes.join(",");
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setProblemData((prevData) => ({
-      ...prevData,
-      [name]: value,
-    }));
-  };
-
-  const handleExampleChange = (index, e) => {
-    const { name, value } = e.target;
-    const updatedExamples = [...problemData.examples];
-    updatedExamples[index][name] = value;
-    setProblemData((prevData) => ({
-      ...prevData,
-      examples: updatedExamples,
-    }));
-  };
-
-  const handleCaseChange = (index, e) => {
-    // Renamed from handleTestCaseChange
-    const { name, value } = e.target;
-    const updatedCases = [...problemData.cases]; // Renamed from updatedTestCases
-    updatedCases[index][name] = value;
-    setProblemData((prevData) => ({
-      ...prevData,
-      cases: updatedCases, // Renamed from testCases
-    }));
-  };
-
-  const addExample = () => {
-    setProblemData((prevData) => ({
-      ...prevData,
-      examples: [...prevData.examples, { input: "", output: "", explanation: "" }],
-    }));
-  };
-
-  const removeExample = (index) => {
-    const updatedExamples = [...problemData.examples];
-    updatedExamples.splice(index, 1);
-    setProblemData((prevData) => ({
-      ...prevData,
-      examples: updatedExamples,
-    }));
-  };
-
-  const addCase = () => {
-    // Renamed from addTestCase
-    setProblemData((prevData) => ({
-      ...prevData,
-      cases: [...prevData.cases, { input: "", output: "" }], // Renamed from testCases
-    }));
-  };
-
-  const removeCase = (index) => {
-    // Renamed from removeTestCase
-    if (problemData.cases.length <= 1) {
-      // Renamed from testCases
-      setError("At least one case is required."); // Updated message
-      return;
-    }
-    const updatedCases = [...problemData.cases]; // Renamed from updatedTestCases
-    updatedCases.splice(index, 1);
-    setProblemData((prevData) => ({ ...prevData, cases: updatedCases })); // Renamed from testCases
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setError("");
-    setSuccess("");
-    setSubmitLoading(true);
-
-    if (
-      !problemData.problem_id.trim() ||
-      !problemData.problem_name.trim() ||
-      !problemData.content.trim()
-    ) {
-      setError("Problem ID, Name, and Content are required.");
-      setSubmitLoading(false);
-      return;
-    }
-
-    // Validate Cases
-    if (
-      !problemData.cases ||
-      problemData.cases.length === 0 ||
-      problemData.cases.some((c) => !c.input?.trim() || !c.output?.trim())
-    ) {
-      // Renamed from testCases
-      setError("At least one case with non-empty input and output is required."); // Updated message
-      setSubmitLoading(false);
-      return;
-    }
-
-    const examplesToSubmit = problemData.examples.filter(
-      (ex) => ex.input?.trim() || ex.output?.trim() || ex.explanation?.trim()
-    );
-
-    if (examplesToSubmit.some((ex) => !ex.input?.trim() || !ex.output?.trim())) {
-      setError("If an example is partially filled, its input and output fields are required.");
-      setSubmitLoading(false);
-      return;
-    }
-
-    const dataToSubmit = {
-      ...problemData,
-      examples: examplesToSubmit,
-    };
-
-    post("/api/problem", dataToSubmit)
-      .then((response) => {
-        setSubmitLoading(false);
-        setSuccess(
-          `Problem "${response.problem_name || problemData.problem_name}" (ID: ${
-            response.problem_id || problemData.problem_id
-          }) added successfully!`
-        );
-        setProblemData(initialProblemData);
+  useEffect(() => {
+    setLoading(true);
+    get(`/api/problem/${problemId}`)
+      .then((data) => {
+        setProblem(data);
+        setLoading(false);
       })
       .catch((err) => {
-        setSubmitLoading(false);
-        const errorMsg = err.data?.msg || err.message || "Failed to add problem.";
-        setError(errorMsg);
-        console.error("Failed to add problem:", err);
+        console.error("Failed to fetch problem details:", err);
+        setError(
+          `Failed to load problem ${problemId}. It might not exist or there was a server error.`
+        );
+        setLoading(false);
       });
+  }, [problemId]);
+
+  const processAndSetFile = (file) => {
+    if (file) {
+      const fileExtension = file.name.substring(file.name.lastIndexOf(".")).toLowerCase();
+      if (!allowedFileTypes.includes(fileExtension)) {
+        setSubmissionStatus(
+          `Invalid file type: "${fileExtension}". Allowed types: ${allowedFileTypes.join(", ")}`
+        );
+        setSelectedFile(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = ""; // Clear the file input
+        }
+        return;
+      }
+      // Basic check for file size (e.g., 5MB limit, same as backend)
+      if (file.size > 5 * 1024 * 1024) {
+        setSubmissionStatus(`File is too large. Maximum size is 5MB.`);
+        setSelectedFile(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
+        return;
+      }
+
+      setSelectedFile(file);
+      setSubmissionStatus("");
+    }
   };
 
-  if (authLoading) {
-    return <LoadingSpinner fullPage={true} message="Checking authentication..." />;
+  const handleFileChange = (event) => {
+    if (event.target.files && event.target.files[0]) {
+      processAndSetFile(event.target.files[0]);
+    }
+  };
+
+  const handleLanguageChange = (event) => {
+    setLanguage(event.target.value);
+  };
+
+  const handleSubmitCode = async () => {
+    if (!selectedFile) {
+      setSubmissionStatus("Please select a code file to submit.");
+      return;
+    }
+
+    setSubmissionStatus("Submitting...");
+    const formData = new FormData();
+    formData.append("language", language);
+    formData.append("codeFile", selectedFile);
+
+    try {
+      const response = await post(`/api/submit/${problemId}`, formData);
+      console.log("Submission successful:", response);
+      setSubmissionStatus(`Submission successful! Server says: ${response.msg}`);
+      setSelectedFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ""; // Clear the file input after successful submission
+      }
+    } catch (err) {
+      console.error("Submission failed:", err);
+      const errorMsg = err.data?.msg || err.message || "Submission failed. Please try again.";
+      setSubmissionStatus(errorMsg);
+    }
+  };
+
+  // Drag and Drop Handlers
+  const handleDragOver = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    // setIsDraggingOver(true); // Can set true here, or in handleDragEnter for more specific zone highlighting
+  };
+
+  const handleDragEnter = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDraggingOver(true);
+  };
+
+  const handleDragLeave = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    // Check if the leave target is outside the drop zone
+    if (event.currentTarget.contains(event.relatedTarget)) {
+      return;
+    }
+    setIsDraggingOver(false);
+  };
+
+  const handleDrop = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDraggingOver(false);
+    if (event.dataTransfer.files && event.dataTransfer.files.length > 0) {
+      processAndSetFile(event.dataTransfer.files[0]); // Process the first dropped file
+      event.dataTransfer.clearData();
+    }
+  };
+
+  if (loading) {
+    return (
+      <Container sx={{ textAlign: "center", mt: 5, position: "relative" }}>
+        <BackButton />
+        <CircularProgress />
+        <Typography>Loading problem details...</Typography>
+      </Container>
+    );
   }
 
-  if (!currentUser) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+  if (error) {
+    return (
+      <Container sx={{ textAlign: "center", mt: 5, position: "relative" }}>
+        <BackButton />
+        <Typography color="error" variant="h6">
+          {error}
+        </Typography>
+      </Container>
+    );
+  }
+
+  if (!problem) {
+    return (
+      <Container sx={{ textAlign: "center", mt: 5, position: "relative" }}>
+        <BackButton />
+        <Typography variant="h6">Problem not found.</Typography>
+      </Container>
+    );
   }
 
   return (
-    <Container maxWidth="md" sx={{ mt: { xs: 2, sm: 4 }, mb: 4 }}>
+    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+      {/* Paper is the relative anchor */}{" "}
       <Paper elevation={3} sx={{ p: { xs: 2, sm: 3 }, position: "relative" }}>
+        {" "}
+        {/* Added position: relative */}
         <BackButton sx={{ top: { xs: 16, sm: 24 }, left: { xs: 16, sm: 24 } }} />
-        <Typography
-          variant="h4"
-          component="h1"
-          gutterBottom
-          sx={{
-            fontWeight: "bold",
-            textAlign: "center",
-            pt: { xs: 4, sm: 0 },
-          }}
-        >
-          Add New Problem
+        <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: "bold" }}>
+          {problem.problem_name} ({problem.problem_id})
         </Typography>
-        {error && (
-          <Alert severity="error" sx={{ my: 2 }}>
-            {error}
-          </Alert>
-        )}
-        {success && (
-          <Alert severity="success" sx={{ my: 2 }}>
-            {success}
-          </Alert>
-        )}
-        <Box component="form" onSubmit={handleSubmit} noValidate sx={{ mt: 1 }}>
-          {/* Problem ID, Name, Difficulty, Content */}
-          <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                margin="normal"
-                required
-                fullWidth
-                id="problem_id"
-                label="Problem ID (e.g., P1001)"
-                name="problem_id"
-                value={problemData.problem_id}
-                onChange={handleChange}
-                autoFocus
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                margin="normal"
-                required
-                fullWidth
-                id="problem_name"
-                label="Problem Name"
-                name="problem_name"
-                value={problemData.problem_name}
-                onChange={handleChange}
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <FormControl fullWidth margin="normal">
-                <InputLabel id="difficulty-label">Difficulty</InputLabel>
-                <Select
-                  labelId="difficulty-label"
-                  id="problem_difficulty"
-                  name="problem_difficulty"
-                  value={problemData.problem_difficulty}
-                  label="Difficulty"
-                  onChange={handleChange}
-                >
-                  <MenuItem value="easy">Easy</MenuItem>
-                  <MenuItem value="medium">Medium</MenuItem>
-                  <MenuItem value="hard">Hard</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                margin="normal"
-                required
-                fullWidth
-                id="content"
-                label="Problem Content/Description (Markdown supported)"
-                name="content"
-                multiline
-                rows={6}
-                value={problemData.content}
-                onChange={handleChange}
-              />
-            </Grid>
-          </Grid>
-
-          {/* Examples Section */}
-          <Box sx={{ my: 3, borderTop: "1px solid #ddd", pt: 2 }}>
-            <Typography variant="h6" sx={{ mb: 1 }}>
-              Examples (Publicly Visible - Optional)
+        <Typography variant="subtitle1" color="text.secondary" gutterBottom>
+          Difficulty:{" "}
+          <span
+            style={{
+              color:
+                problem.problem_difficulty === "hard"
+                  ? "red"
+                  : problem.problem_difficulty === "medium"
+                  ? "orange"
+                  : "green",
+              fontWeight: "bold",
+            }}
+          >
+            {problem.problem_difficulty}
+          </span>
+        </Typography>
+        <Divider sx={{ my: 2 }} />
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="h6" gutterBottom>
+            Description
+          </Typography>
+          <Typography variant="body1" sx={{ whiteSpace: "pre-wrap" }}>
+            {problem.content || "No description provided."}
+          </Typography>
+        </Box>
+        {/* Input/Output Format, Constraints, Examples (assuming these are styled adequately) */}
+        {problem.inputFormat && (
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="h6" gutterBottom>
+              Input Format
             </Typography>
-            {problemData.examples.map((example, index) => (
+            <Typography variant="body1" sx={{ whiteSpace: "pre-wrap" }}>
+              {problem.inputFormat}
+            </Typography>
+          </Box>
+        )}
+        {problem.outputFormat && (
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="h6" gutterBottom>
+              Output Format
+            </Typography>
+            <Typography variant="body1" sx={{ whiteSpace: "pre-wrap" }}>
+              {problem.outputFormat}
+            </Typography>
+          </Box>
+        )}
+        {problem.constraints && (
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="h6" gutterBottom>
+              Constraints
+            </Typography>
+            <Typography variant="body1" sx={{ whiteSpace: "pre-wrap" }}>
+              {problem.constraints}
+            </Typography>
+          </Box>
+        )}
+        {problem.examples && problem.examples.length > 0 && (
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="h6" gutterBottom>
+              Examples
+            </Typography>
+            {problem.examples.map((example, index) => (
               <Paper
-                key={`example-${index}`}
+                key={index}
                 variant="outlined"
-                sx={{ p: 2, mb: 2, position: "relative" }}
+                sx={{ p: 2, mb: 2, backgroundColor: "grey.100" }}
               >
-                <Typography variant="subtitle1" gutterBottom>
-                  Example {index + 1}
+                <Typography variant="subtitle2" sx={{ fontWeight: "bold" }}>
+                  Example {index + 1}:
                 </Typography>
-                <IconButton
-                  aria-label="delete example"
-                  onClick={() => removeExample(index)}
-                  sx={{ position: "absolute", top: 8, right: 8 }}
+                <Typography variant="body2" sx={{ fontWeight: "medium", mt: 1 }}>
+                  Input:
+                </Typography>
+                <Box
+                  component="pre"
+                  sx={{
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-all",
+                    backgroundColor: "grey.200",
+                    p: 1,
+                    borderRadius: 1,
+                    mt: 0.5,
+                    fontFamily: "monospace",
+                  }}
                 >
-                  <DeleteIcon />
-                </IconButton>
-                <TextField
-                  margin="dense"
-                  fullWidth
-                  label={`Input`}
-                  name="input"
-                  multiline
-                  rows={2}
-                  value={example.input}
-                  onChange={(e) => handleExampleChange(index, e)}
-                />
-                <TextField
-                  margin="dense"
-                  fullWidth
-                  label={`Output`}
-                  name="output"
-                  multiline
-                  rows={2}
-                  value={example.output}
-                  onChange={(e) => handleExampleChange(index, e)}
-                />
-                <TextField
-                  margin="dense"
-                  fullWidth
-                  label={`Explanation (Optional)`}
-                  name="explanation"
-                  multiline
-                  rows={1}
-                  value={example.explanation}
-                  onChange={(e) => handleExampleChange(index, e)}
-                />
+                  {example.input}
+                </Box>
+                <Typography variant="body2" sx={{ fontWeight: "medium", mt: 1 }}>
+                  Output:
+                </Typography>
+                <Box
+                  component="pre"
+                  sx={{
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-all",
+                    backgroundColor: "grey.200",
+                    p: 1,
+                    borderRadius: 1,
+                    mt: 0.5,
+                    fontFamily: "monospace",
+                  }}
+                >
+                  {example.output}
+                </Box>
+                {example.explanation && (
+                  <>
+                    <Typography variant="body2" sx={{ fontWeight: "medium", mt: 1 }}>
+                      Explanation:
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      component="div"
+                      sx={{ whiteSpace: "pre-wrap", mt: 0.5 }}
+                    >
+                      {example.explanation}
+                    </Typography>
+                  </>
+                )}
               </Paper>
             ))}
-            <Button onClick={addExample} variant="outlined" sx={{ mt: 1 }}>
-              Add Example
-            </Button>
           </Box>
-
-          {/* Cases Section */}
-          <Box sx={{ my: 3, borderTop: "1px solid #ddd", pt: 2 }}>
-            <Typography variant="h6" sx={{ mb: 1 }}>
-              Cases (Not Publicly Visible - Required)
-            </Typography>
-            {problemData.cases.map(
-              (
-                problemCase,
-                index // Renamed testCase to problemCase to avoid conflict with map variable
-              ) => (
-                <Paper
-                  key={`case-${index}`}
-                  variant="outlined"
-                  sx={{ p: 2, mb: 2, position: "relative" }}
-                >
-                  <Typography variant="subtitle1" gutterBottom>
-                    Case {index + 1}
-                  </Typography>
-                  {problemData.cases.length > 1 && (
-                    <IconButton
-                      aria-label="delete case"
-                      onClick={() => removeCase(index)} // Renamed from removeTestCase
-                      sx={{ position: "absolute", top: 8, right: 8 }}
-                    >
-                      <DeleteIcon />
-                    </IconButton>
-                  )}
-                  <TextField
-                    margin="dense"
-                    fullWidth
-                    required
-                    label={`Input`}
-                    name="input"
-                    multiline
-                    rows={2}
-                    value={problemCase.input}
-                    onChange={(e) => handleCaseChange(index, e)} // Renamed from handleTestCaseChange
-                  />
-                  <TextField
-                    margin="dense"
-                    fullWidth
-                    required
-                    label={`Output`}
-                    name="output"
-                    multiline
-                    rows={2}
-                    value={problemCase.output}
-                    onChange={(e) => handleCaseChange(index, e)} // Renamed from handleTestCaseChange
-                  />
-                </Paper>
-              )
-            )}
-            <Button onClick={addCase} variant="outlined" sx={{ mt: 1 }}>
-              {" "}
-              {/* Renamed from addTestCase */}
-              Add Case
-            </Button>
-          </Box>
-
-          <Button
-            type="submit"
-            fullWidth
-            variant="contained"
-            sx={{ mt: 3, mb: 2 }}
-            disabled={submitLoading}
+        )}
+        <Divider sx={{ my: 3 }} />
+        <Typography variant="h5" component="h2" gutterBottom>
+          Submit Solution
+        </Typography>
+        <Grid container spacing={2} alignItems="flex-start">
+          {" "}
+          {/* Changed to flex-start */}
+          <Grid item xs={12} sm={4} md={3}>
+            {" "}
+            {/* Adjusted grid size */}
+            <FormControl fullWidth>
+              <InputLabel id="language-select-label">Language</InputLabel>
+              <Select
+                labelId="language-select-label"
+                id="language-select"
+                value={language}
+                label="Language"
+                onChange={handleLanguageChange}
+              >
+                <MenuItem value="python">Python</MenuItem>
+                <MenuItem value="javascript">JavaScript</MenuItem>
+                <MenuItem value="java">Java</MenuItem>
+                <MenuItem value="cpp">C++</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid
+            item
+            xs={12}
+            onDragOver={handleDragOver}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            sx={{ mt: { xs: 1, sm: 0 } }} // Ensure spacing is good
           >
-            {submitLoading ? <CircularProgress size={24} color="inherit" /> : "Add Problem"}
-          </Button>
-        </Box>
+            <Box
+              component="label" // Make the whole box clickable for the input
+              htmlFor="code-file-input"
+              sx={{
+                border: isDraggingOver ? "2px dashed primary.main" : "2px dashed grey.500",
+                borderRadius: 1,
+                p: { xs: 2, sm: 4 }, // Responsive padding
+                textAlign: "center",
+                cursor: "pointer",
+                backgroundColor: isDraggingOver ? "action.hover" : "transparent",
+                transition: "border-color 0.3s, background-color 0.3s",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                minHeight: "150px", // Ensure a decent drop area height
+              }}
+            >
+              <input
+                id="code-file-input"
+                ref={fileInputRef}
+                type="file"
+                hidden
+                onChange={handleFileChange}
+                accept={acceptedFileTypesString}
+              />
+              <CloudUploadIcon
+                sx={{ fontSize: 48, mb: 1, color: isDraggingOver ? "primary.main" : "grey.600" }}
+              />
+              <Typography
+                variant="h6"
+                sx={{ color: isDraggingOver ? "primary.main" : "text.primary" }}
+              >
+                Drag & drop your code file here
+              </Typography>
+              <Typography variant="body1" sx={{ color: "text.secondary" }}>
+                or click to select a file
+              </Typography>
+              <Typography variant="caption" sx={{ color: "text.secondary", mt: 0.5 }}>
+                Allowed types: {allowedFileTypes.join(", ")}. Max 5MB.
+              </Typography>
+            </Box>
+            {selectedFile && (
+              <Typography variant="body2" sx={{ mt: 1, textAlign: "center" }}>
+                Selected file: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(2)} KB)
+              </Typography>
+            )}
+          </Grid>
+          <Grid item xs={12} sx={{ textAlign: "center", mt: 2 }}>
+            {" "}
+            {/* Center submit button */}
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={handleSubmitCode}
+              disabled={!selectedFile} // Disable if no file is selected
+              sx={{ width: { xs: "100%", sm: "auto" }, minWidth: "150px" }}
+            >
+              Submit Code
+            </Button>
+          </Grid>
+        </Grid>
+        {submissionStatus && (
+          <Typography
+            variant="body2"
+            sx={{
+              mt: 2,
+              textAlign: "center",
+              color:
+                submissionStatus.toLowerCase().includes("failed") ||
+                submissionStatus.toLowerCase().includes("invalid") ||
+                submissionStatus.toLowerCase().includes("select a") ||
+                submissionStatus.toLowerCase().includes("too large")
+                  ? "error.main"
+                  : "success.main",
+            }}
+          >
+            {submissionStatus}
+          </Typography>
+        )}
       </Paper>
     </Container>
   );
 };
-export default AddProblemPage;
+
+export default ProblemDetailPage;

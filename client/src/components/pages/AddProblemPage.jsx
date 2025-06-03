@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { post } from "../../utilities";
 import BackButton from "../modules/BackButton";
-import LoadingSpinner from "../modules/LoadingSpinner";
 import { useAuth } from "../../auth";
 import { Navigate, useLocation } from "react-router-dom";
 
@@ -18,19 +17,24 @@ import FormControl from "@mui/material/FormControl";
 import InputLabel from "@mui/material/InputLabel";
 import IconButton from "@mui/material/IconButton";
 import DeleteIcon from "@mui/icons-material/Delete";
+import CircularProgress from "@mui/material/CircularProgress";
 import Alert from "@mui/material/Alert";
+import LoadingSpinner from "../modules/LoadingSpinner"; // Ensure LoadingSpinner is imported
 
 const AddProblemPage = () => {
   const { currentUser, isLoading: authLoading } = useAuth();
   const location = useLocation();
 
-  const [problemData, setProblemData] = useState({
+  const initialProblemData = {
     problem_id: "",
     problem_name: "",
     problem_difficulty: "easy",
     content: "",
-    examples: [{ input: "", output: "", explanation: "" }],
-  });
+    examples: [{ input: "", output: "", explanation: "" }], // Start with one example field
+    cases: [{ input: "", output: "" }], // Start with one case field, as it's required
+  };
+
+  const [problemData, setProblemData] = useState(initialProblemData);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -53,6 +57,16 @@ const AddProblemPage = () => {
     }));
   };
 
+  const handleCaseChange = (index, e) => {
+    const { name, value } = e.target;
+    const updatedCases = [...problemData.cases];
+    updatedCases[index][name] = value;
+    setProblemData((prevData) => ({
+      ...prevData,
+      cases: updatedCases,
+    }));
+  };
+
   const addExample = () => {
     setProblemData((prevData) => ({
       ...prevData,
@@ -61,7 +75,6 @@ const AddProblemPage = () => {
   };
 
   const removeExample = (index) => {
-    if (problemData.examples.length <= 1) return;
     const updatedExamples = [...problemData.examples];
     updatedExamples.splice(index, 1);
     setProblemData((prevData) => ({
@@ -70,36 +83,90 @@ const AddProblemPage = () => {
     }));
   };
 
+  const addCase = () => {
+    setProblemData((prevData) => ({
+      ...prevData,
+      cases: [...prevData.cases, { input: "", output: "" }],
+    }));
+  };
+
+  const removeCase = (index) => {
+    if (problemData.cases.length <= 1) {
+      setError("At least one test case is required.");
+      return;
+    }
+    const updatedCases = [...problemData.cases];
+    updatedCases.splice(index, 1);
+    setProblemData((prevData) => ({ ...prevData, cases: updatedCases }));
+    setError(""); // Clear error if successfully removed a case (and more than one remains)
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    setSubmitLoading(true);
     setError("");
     setSuccess("");
+    setSubmitLoading(true);
 
-    if (!problemData.problem_id || !problemData.problem_name || !problemData.content) {
+    // Validate core problem data
+    if (
+      !problemData.problem_id.trim() ||
+      !problemData.problem_name.trim() ||
+      !problemData.content.trim()
+    ) {
       setError("Problem ID, Name, and Content are required.");
       setSubmitLoading(false);
       return;
     }
-    if (problemData.examples.some((ex) => !ex.input || !ex.output)) {
-      setError("All examples must have an input and an output.");
+
+    // Filter out completely empty examples and validate partially filled ones
+    const examplesToSubmit = problemData.examples.filter(
+      (ex) => ex.input?.trim() || ex.output?.trim() || ex.explanation?.trim()
+    );
+
+    if (examplesToSubmit.some((ex) => !ex.input?.trim() || !ex.output?.trim())) {
+      setError("If an example is partially filled, its input and output fields are required.");
       setSubmitLoading(false);
       return;
     }
 
-    post("/api/problem", problemData)
+    // Validate Test Cases: At least one case with non-empty input and output is required.
+    if (
+      !problemData.cases ||
+      problemData.cases.length === 0 ||
+      problemData.cases.some((c) => !c.input?.trim() || !c.output?.trim())
+    ) {
+      setError("At least one test case with non-empty input and output is required.");
+      setSubmitLoading(false);
+      return;
+    }
+
+    const dataToSubmit = {
+      ...problemData,
+      problem_id: problemData.problem_id.trim(),
+      problem_name: problemData.problem_name.trim(),
+      content: problemData.content.trim(),
+      examples: examplesToSubmit.map((ex) => ({
+        // Trim fields of examples to be submitted
+        input: ex.input.trim(),
+        output: ex.output.trim(),
+        explanation: ex.explanation?.trim() || "", // Ensure explanation is a string
+      })),
+      cases: problemData.cases.map((c) => ({
+        // Trim fields of cases
+        input: c.input.trim(),
+        output: c.output.trim(),
+      })),
+    };
+
+    post("/api/problem", dataToSubmit)
       .then((response) => {
         setSubmitLoading(false);
         setSuccess(
-          `Problem "${response.problem_name}" (ID: ${response.problem_id}) added successfully!`
+          `Problem "${response.problem_name || dataToSubmit.problem_name}" (ID: ${
+            response.problem_id || dataToSubmit.problem_id
+          }) added successfully!`
         );
-        setProblemData({
-          problem_id: "",
-          problem_name: "",
-          problem_difficulty: "easy",
-          content: "",
-          examples: [{ input: "", output: "", explanation: "" }],
-        });
+        setProblemData(initialProblemData); // Reset form to initial state
       })
       .catch((err) => {
         setSubmitLoading(false);
@@ -110,7 +177,7 @@ const AddProblemPage = () => {
   };
 
   if (authLoading) {
-    <LoadingSpinner fullPage={true} message="Checking authentication..." />;
+    return <LoadingSpinner fullPage={true} message="Checking authentication..." />; // Fixed: Added return
   }
 
   if (!currentUser) {
@@ -204,28 +271,31 @@ const AddProblemPage = () => {
               />
             </Grid>
           </Grid>
-          <Box sx={{ my: 2 }}>
-            <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>
-              Examples
+
+          {/* Examples Section */}
+          <Box sx={{ my: 3, borderTop: "1px solid #ddd", pt: 2 }}>
+            <Typography variant="h6" sx={{ mb: 1 }}>
+              Examples (Publicly Visible - Optional)
             </Typography>
             {problemData.examples.map((example, index) => (
-              <Paper key={index} variant="outlined" sx={{ p: 2, mb: 2, position: "relative" }}>
+              <Paper
+                key={`example-${index}`}
+                variant="outlined"
+                sx={{ p: 2, mb: 2, position: "relative" }}
+              >
                 <Typography variant="subtitle1" gutterBottom>
                   Example {index + 1}
                 </Typography>
-                {problemData.examples.length > 1 && (
-                  <IconButton
-                    aria-label="delete example"
-                    onClick={() => removeExample(index)}
-                    sx={{ position: "absolute", top: 8, right: 8 }}
-                  >
-                    <DeleteIcon />
-                  </IconButton>
-                )}
+                <IconButton
+                  aria-label="delete example"
+                  onClick={() => removeExample(index)}
+                  sx={{ position: "absolute", top: 8, right: 8 }}
+                >
+                  <DeleteIcon />
+                </IconButton>
                 <TextField
                   margin="dense"
                   fullWidth
-                  required
                   label={`Input`}
                   name="input"
                   multiline
@@ -236,7 +306,6 @@ const AddProblemPage = () => {
                 <TextField
                   margin="dense"
                   fullWidth
-                  required
                   label={`Output`}
                   name="output"
                   multiline
@@ -257,9 +326,62 @@ const AddProblemPage = () => {
               </Paper>
             ))}
             <Button onClick={addExample} variant="outlined" sx={{ mt: 1 }}>
-              Add Another Example
+              Add Example
             </Button>
           </Box>
+
+          {/* Cases Section */}
+          <Box sx={{ my: 3, borderTop: "1px solid #ddd", pt: 2 }}>
+            <Typography variant="h6" sx={{ mb: 1 }}>
+              Test Cases (Not Publicly Visible - At least one required)
+            </Typography>
+            {problemData.cases.map((problemCase, index) => (
+              <Paper
+                key={`case-${index}`}
+                variant="outlined"
+                sx={{ p: 2, mb: 2, position: "relative" }}
+              >
+                <Typography variant="subtitle1" gutterBottom>
+                  Test Case {index + 1}
+                </Typography>
+                {problemData.cases.length > 1 && ( // Only show delete if more than one case
+                  <IconButton
+                    aria-label="delete case"
+                    onClick={() => removeCase(index)}
+                    sx={{ position: "absolute", top: 8, right: 8 }}
+                  >
+                    <DeleteIcon />
+                  </IconButton>
+                )}
+                <TextField
+                  margin="dense"
+                  fullWidth
+                  required
+                  label={`Input`}
+                  name="input"
+                  multiline
+                  rows={2}
+                  value={problemCase.input}
+                  onChange={(e) => handleCaseChange(index, e)}
+                />
+                <TextField
+                  margin="dense"
+                  fullWidth
+                  required
+                  label={`Output`}
+                  name="output"
+                  multiline
+                  rows={2}
+                  value={problemCase.output}
+                  onChange={(e) => handleCaseChange(index, e)}
+                />
+              </Paper>
+            ))}
+            <Button onClick={addCase} variant="outlined" sx={{ mt: 1 }}>
+              Add Test Case
+            </Button>
+          </Box>
+
           <Button
             type="submit"
             fullWidth
