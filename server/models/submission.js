@@ -22,7 +22,14 @@ const SubmissionSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ["Pending", "Accepted", "Wrong Answer", "Time Limit Exceeded", "Compilation Error"],
+    enum: [
+      "Pending",
+      "Judging",
+      "Accepted",
+      "Wrong Answer",
+      "Time Limit Exceeded",
+      "Compilation Error",
+    ],
     default: "Pending",
   },
   createdAt: {

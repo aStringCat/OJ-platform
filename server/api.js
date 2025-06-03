@@ -6,7 +6,10 @@ const bcrypt = require("bcryptjs");
 const multer = require("multer");
 const mongoose = require("mongoose");
 
-const upload = multer({ storage: multer.memoryStorage() });
+// Import the judge service
+const { judgeSubmission } = require("./judge"); // Adjust path if necessary
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } }); // 5MB limit
 const router = express.Router();
 
 const isAuthenticated = (req, res, next) => {
@@ -17,8 +20,7 @@ const isAuthenticated = (req, res, next) => {
 };
 
 // --- User Auth Routes ---
-
-// User Registration
+// ... (keep existing auth routes: /register, /login, /whoami, /logout) ...
 router.post("/register", async (req, res) => {
   const { name, email, password } = req.body;
 
@@ -43,7 +45,6 @@ router.post("/register", async (req, res) => {
 
     await user.save();
 
-    // Automatically log in the user after registration
     req.session.userId = user._id;
     req.session.userName = user.name;
     req.session.userEmail = user.email;
@@ -60,7 +61,6 @@ router.post("/register", async (req, res) => {
   }
 });
 
-// User Login
 router.post("/login", async (req, res) => {
   const { email, password } = req.body;
 
@@ -95,7 +95,6 @@ router.post("/login", async (req, res) => {
   }
 });
 
-// Get Current User (whoami)
 router.get("/whoami", (req, res) => {
   if (req.session.userId) {
     res.send({
@@ -104,26 +103,23 @@ router.get("/whoami", (req, res) => {
       email: req.session.userEmail,
     });
   } else {
-    // It's better to send a 200 with null or specific structure if no user,
-    // or let client handle 401 gracefully. For now, 401 is okay.
     res.status(401).send({ msg: "Not authenticated" });
   }
 });
 
-// User Logout
 router.post("/logout", (req, res) => {
   req.session.destroy((err) => {
     if (err) {
       console.error("Logout error:", err);
       return res.status(500).send({ msg: "Could not log out, please try again." });
     }
-    // The session cookie is typically named 'connect.sid' by default with express-session
-    res.clearCookie("connect.sid"); // Ensure the session cookie is cleared
+    res.clearCookie("connect.sid");
     res.status(200).send({ msg: "Logged out successfully." });
   });
 });
 
-// --- Problem Routes (Existing) ---
+// --- Problem Routes ---
+// ... (keep existing problem routes: /problems, /problem/:problemId, /problem POST) ...
 router.get("/problems", (_req, res) => {
   Problem.find({})
     .sort({ createdAt: -1 })
@@ -142,9 +138,7 @@ router.get("/problem/:problemId", (req, res) => {
     .catch((err) => res.status(500).send({ msg: "Error fetching problem", error: err }));
 });
 
-// Protected route: Add new problem
 router.post("/problem", isAuthenticated, (req, res) => {
-  // Added isAuthenticated middleware
   const newProblem = new Problem({
     problem_id: req.body.problem_id,
     problem_name: req.body.problem_name,
@@ -152,7 +146,6 @@ router.post("/problem", isAuthenticated, (req, res) => {
     content: req.body.content,
     examples: req.body.examples || [],
     cases: req.body.cases || [],
-    // Consider adding author/creator ID: req.session.userId
   });
 
   newProblem
@@ -160,7 +153,6 @@ router.post("/problem", isAuthenticated, (req, res) => {
     .then((problem) => res.send(problem))
     .catch((err) => {
       if (err.code === 11000) {
-        // Duplicate key error (e.g. problem_id)
         return res.status(400).send({
           msg: "Error saving problem. Problem ID might already exist.",
           error: err.message,
@@ -170,23 +162,26 @@ router.post("/problem", isAuthenticated, (req, res) => {
     });
 });
 
-// Protected route: Submit solution
+// --- Submission Routes ---
+
+// Submit solution
 router.post("/submit/:problemId", isAuthenticated, upload.single("codeFile"), async (req, res) => {
   const { problemId } = req.params;
-  // `language` 字段仍然从 req.body 中获取'language' 字段仍然从 req.body 中获取
-  const { language } = req.body;
+  const { language } = req.body; // Language from form data (e.g., hidden input or part of FormData)
   const userId = req.session.userId;
 
-  // 检查文件是否上传
   if (!req.file) {
     return res.status(400).send({ msg: "No code file was uploaded." });
   }
-
-  // 从内存中的文件 Buffer 读取代码
   const code = req.file.buffer.toString("utf-8");
 
   if (!code || !language) {
     return res.status(400).send({ msg: "Code (from file) and language are required." });
+  }
+
+  // **Temporarily restrict to Python**
+  if (language.toLowerCase() !== "python") {
+    return res.status(400).send({ msg: "Only Python submissions are currently supported." });
   }
 
   try {
@@ -198,21 +193,39 @@ router.post("/submit/:problemId", isAuthenticated, upload.single("codeFile"), as
     const userObjectId = new mongoose.Types.ObjectId(userId);
 
     const newSubmission = new Submission({
-      user: userObjectId, // 使用转换后的 ObjectId
+      user: userObjectId,
       problem: problem._id,
       code,
       language,
-      status: "Pending",
+      status: "Pending", // Initial status
     });
 
-    await newSubmission.save();
+    const savedSubmission = await newSubmission.save();
+
+    // Asynchronously trigger judging - DO NOT await this in the HTTP request handler
+    // This allows the server to respond quickly to the user.
+    judgeSubmission(savedSubmission._id).catch((err) => {
+      console.error(`[API] Error triggering judge for submission ${savedSubmission._id}:`, err);
+      // Attempt to mark the submission as a System Error if judge initiation fails
+      Submission.findByIdAndUpdate(savedSubmission._id, {
+        status: "System Error" /*, executionOutput: "Failed to initiate judging process." */,
+      }).catch((dbErr) =>
+        console.error(
+          `[API] Failed to mark submission ${savedSubmission._id} as System Error after judge init failure:`,
+          dbErr
+        )
+      );
+    });
 
     res.status(201).send({
       msg: "Submission received and is pending evaluation.",
-      submissionId: newSubmission._id,
+      submissionId: savedSubmission._id,
     });
   } catch (err) {
-    console.error("Submission error:", err);
+    console.error("[API] Submission error:", err);
+    if (err.name === "ValidationError") {
+      return res.status(400).send({ msg: "Validation error for submission.", error: err.message });
+    }
     res.status(500).send({ msg: "Server error during submission.", error: err.message });
   }
 });
@@ -220,60 +233,58 @@ router.post("/submit/:problemId", isAuthenticated, upload.single("codeFile"), as
 // Get all submissions for the logged-in user
 router.get("/submissions", isAuthenticated, async (req, res) => {
   try {
-    // 将 session 中的字符串 ID 转换为 ObjectId 类型
     const userId = new mongoose.Types.ObjectId(req.session.userId);
-
-    const submissions = await Submission.find({ user: userId }) // 使用转换后的ID进行查询
+    const submissions = await Submission.find({ user: userId })
       .sort({ createdAt: -1 })
-      .populate("problem", "problem_id problem_name problem_difficulty");
+      .populate("problem", "problem_id problem_name problem_difficulty"); // Populate problem details
 
     res.status(200).send(submissions);
   } catch (err) {
-    console.error("Error fetching submissions:", err);
+    console.error("[API] Error fetching submissions:", err);
     res.status(500).send({ msg: "Server error while fetching submissions.", error: err.message });
   }
 });
 
-// Get a single submission's details
-// This allows a user to view their own past submission details
+// Get a single submission's details (for the owner)
 router.get("/submission/:submissionId", isAuthenticated, async (req, res) => {
   try {
     const submission = await Submission.findById(req.params.submissionId).populate(
       "problem",
       "problem_id problem_name"
-    );
+    ); // Populate basic problem details
 
     if (!submission) {
       return res.status(404).send({ msg: "Submission not found." });
     }
 
-    // Ensure the user is requesting their own submission
     if (submission.user.toString() !== req.session.userId) {
       return res.status(403).send({ msg: "Forbidden: You do not have access to this submission." });
     }
 
     res.status(200).send(submission);
   } catch (err) {
-    console.error("Error fetching submission:", err);
+    console.error("[API] Error fetching single submission:", err);
     res.status(500).send({ msg: "Server error while fetching submission.", error: err.message });
   }
 });
 
-// Endpoint for a hypothetical judging service to fetch the next submission to evaluate.
-// This provides the "space" for the judging logic.
-router.get("/submissions/next_to_judge", async (req, res) => {
-  // In a real system, this endpoint should be protected (e.g., by IP or a secret key)
+// --- Placeholder Judge Endpoints (can be removed or adapted if judge is internal) ---
+// These were for a hypothetical external judge.
+// Since judgeSubmission is now called internally, these might not be directly used in the same way.
+
+router.get("/submissions/next_to_judge", async (_req, res) => {
+  // This endpoint might still be useful for an external worker, or for internal prioritization logic
+  // For now, it's not directly used by the judgeSubmission flow above.
   try {
     const submission = await Submission.findOneAndUpdate(
-      { status: "Pending" }, // Find a pending submission
-      { $set: { status: "Judging" } }, // Set its status to Judging to prevent race conditions
-      { sort: { createdAt: 1 }, new: true } // Get the oldest one and return the updated document
-    ).populate("problem"); // Populate the full problem details for the judge
+      { status: "Pending" },
+      { $set: { status: "Judging" } },
+      { sort: { createdAt: 1 }, new: true }
+    ).populate("problem");
 
     if (!submission) {
       return res.status(200).send({ msg: "No pending submissions to judge." });
     }
-
     res.status(200).send(submission);
   } catch (err) {
     console.error("Error fetching submission for judging:", err);
@@ -283,41 +294,29 @@ router.get("/submissions/next_to_judge", async (req, res) => {
   }
 });
 
-// Endpoint for the judging service to post back the result of a submission.
 router.post("/submission/:submissionId/judge_result", async (req, res) => {
-  // In a real system, this endpoint should be protected (e.g., by IP or a secret key for the judge service)
+  // This endpoint would be called by an external judge.
+  // The internal judgeSubmission directly updates the DB.
   const { submissionId } = req.params;
-  const { status, output: executionOutput, error: executionError } = req.body; // 'status' is mandatory. 'output' and 'error' are optional.
+  const { status /*, output, error */ } = req.body;
 
-  // Validate incoming status against the Submission schema's enum
   const validStatuses = Submission.schema.path("status").enumValues;
   if (!status || !validStatuses.includes(status)) {
     return res.status(400).send({ msg: "Invalid or missing status for judging result." });
   }
 
   try {
-    const submission = await Submission.findById(submissionId);
-
-    if (!submission) {
-      return res.status(404).send({ msg: "Submission not found." });
+    const updatedSubmission = await Submission.findByIdAndUpdate(
+      submissionId,
+      { status: status /*, executionOutput: output || error */ },
+      { new: true }
+    );
+    if (!updatedSubmission) {
+      return res.status(404).send({ msg: "Submission not found to update." });
     }
-
-    // Update submission status.
-    // More fields could be updated here if the Submission model is extended
-    // e.g., submission.executionOutput = executionOutput;
-    //      submission.compilerMessage = executionError; (if status is Compilation Error)
-    submission.status = status;
-
-    // If the problem's examples are used as test cases:
-    // A more complete judging logic would happen in the sandbox before calling this endpoint.
-    // The sandbox would compare problem.examples[i].output with actualOutput.
-    // If `status` is "Wrong Answer", `executionOutput` might be the actual output from the code.
-    // If `status` is "Accepted", it means all test cases (derived from problem.examples) passed.
-    // This endpoint just records the final status decided by the sandbox.
-
-    await submission.save();
-
-    res.status(200).send({ msg: "Submission status updated successfully.", submission });
+    res
+      .status(200)
+      .send({ msg: "Submission status updated successfully.", submission: updatedSubmission });
   } catch (err) {
     console.error(`Error updating submission status for ${submissionId}:`, err);
     res
@@ -326,6 +325,7 @@ router.post("/submission/:submissionId/judge_result", async (req, res) => {
   }
 });
 
+// Catch-all for API routes not found
 router.all("*", (req, res) => {
   console.log(`API route not found: ${req.method} ${req.url}`);
   res.status(404).send({ msg: "API route not found" });
