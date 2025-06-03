@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom"; // Added useNavigate
 import { get, post } from "../../utilities";
 import BackButton from "../modules/BackButton";
+import LoadingSpinner from "../modules/LoadingSpinner";
 import { useAuth } from "../../auth"; // Import useAuth
 
 import Box from "@mui/material/Box";
@@ -95,24 +96,7 @@ const ProblemDetailPage = () => {
 
   if (problemLoading || authLoading) {
     // Check both problem and auth loading
-    return (
-      <Container
-        sx={{
-          textAlign: "center",
-          mt: 5,
-          position: "relative",
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          height: "80vh",
-        }}
-      >
-        {/* BackButton might be out of place if it's a full page loader */}
-        {/* <BackButton /> */}
-        <CircularProgress />
-        <Typography sx={{ ml: 2 }}>Loading problem details...</Typography>
-      </Container>
-    );
+    return <LoadingSpinner fullPage={true} message="Loading problem details..." />;
   }
 
   if (error) {

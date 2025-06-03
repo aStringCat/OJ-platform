@@ -1,22 +1,17 @@
 import { Outlet } from "react-router-dom";
 import UserActions from "./modules/UserActions"; // Import UserActions
 import SideNavigation from "./modules/SideNavigation";
-import Box from "@mui/material/Box";
 import { useAuth } from "../auth"; // Import useAuth
-import CircularProgress from "@mui/material/CircularProgress";
+import LoadingSpinner from "./modules/LoadingSpinner";
+
+import Box from "@mui/material/Box";
 
 const App = () => {
   const { currentUser, isLoading } = useAuth();
 
   // Optional: Global loading state while auth is being checked
   if (isLoading) {
-    return (
-      <Box
-        sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh" }}
-      >
-        <CircularProgress />
-      </Box>
-    );
+    return <LoadingSpinner fullPage={true} message="Initializing..." />;
   }
 
   return (

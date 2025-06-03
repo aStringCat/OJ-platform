@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { post } from "../../utilities";
 import BackButton from "../modules/BackButton";
+import LoadingSpinner from "../modules/LoadingSpinner";
 import { useAuth } from "../../auth";
 import { Navigate, useLocation } from "react-router-dom";
 
@@ -17,7 +18,6 @@ import FormControl from "@mui/material/FormControl";
 import InputLabel from "@mui/material/InputLabel";
 import IconButton from "@mui/material/IconButton";
 import DeleteIcon from "@mui/icons-material/Delete";
-import CircularProgress from "@mui/material/CircularProgress";
 import Alert from "@mui/material/Alert";
 
 const AddProblemPage = () => {
@@ -110,20 +110,7 @@ const AddProblemPage = () => {
   };
 
   if (authLoading) {
-    return (
-      <Container
-        sx={{
-          textAlign: "center",
-          mt: 5,
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          height: "80vh",
-        }}
-      >
-        <CircularProgress />
-      </Container>
-    );
+    <LoadingSpinner fullPage={true} message="Checking authentication..." />;
   }
 
   if (!currentUser) {

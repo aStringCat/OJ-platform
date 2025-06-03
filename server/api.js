@@ -151,6 +151,7 @@ router.post("/problem", isAuthenticated, (req, res) => {
     problem_difficulty: req.body.problem_difficulty,
     content: req.body.content,
     examples: req.body.examples || [],
+    cases: req.body.cases || [],
     // Consider adding author/creator ID: req.session.userId
   });
 

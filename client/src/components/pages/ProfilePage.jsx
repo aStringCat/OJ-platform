@@ -1,11 +1,12 @@
 import { useAuth } from "../../auth";
-import { Navigate, useLocation ,Link} from "react-router-dom";
+import { Navigate, useLocation, Link } from "react-router-dom";
+import LoadingSpinner from "../modules/LoadingSpinner";
+
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
 import Paper from "@mui/material/Paper";
 import Box from "@mui/material/Box";
 import Avatar from "@mui/material/Avatar";
-import CircularProgress from "@mui/material/CircularProgress";
 import BackButton from "../modules/BackButton";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
@@ -15,27 +16,14 @@ import ListItemButton from "@mui/material/ListItemButton";
 import Divider from "@mui/material/Divider";
 import EmailIcon from "@mui/icons-material/Email";
 import BadgeIcon from "@mui/icons-material/Badge"; // For User ID
-import HistoryEduIcon from "@mui/icons-material/History"
+import HistoryEduIcon from "@mui/icons-material/History";
 
 const ProfilePage = () => {
   const { currentUser, isLoading } = useAuth();
   const location = useLocation();
 
   if (isLoading) {
-    return (
-      <Container
-        sx={{
-          textAlign: "center",
-          mt: 5,
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          height: "80vh",
-        }}
-      >
-        <CircularProgress />
-      </Container>
-    );
+    return <LoadingSpinner fullPage={true} message="Loading profile..." />;
   }
 
   if (!currentUser) {
