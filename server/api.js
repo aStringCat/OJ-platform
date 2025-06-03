@@ -202,6 +202,7 @@ router.post("/submit/:problemId", isAuthenticated, upload.single("codeFile"), as
       problem: problem._id,
       code,
       language,
+      status: "Pending",
     });
 
     await newSubmission.save();
