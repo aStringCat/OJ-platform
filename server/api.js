@@ -282,6 +282,49 @@ router.get("/submissions/next_to_judge", async (req, res) => {
   }
 });
 
+// Endpoint for the judging service to post back the result of a submission.
+router.post("/submission/:submissionId/judge_result", async (req, res) => {
+  // In a real system, this endpoint should be protected (e.g., by IP or a secret key for the judge service)
+  const { submissionId } = req.params;
+  const { status, output: executionOutput, error: executionError } = req.body; // 'status' is mandatory. 'output' and 'error' are optional.
+
+  // Validate incoming status against the Submission schema's enum
+  const validStatuses = Submission.schema.path("status").enumValues;
+  if (!status || !validStatuses.includes(status)) {
+    return res.status(400).send({ msg: "Invalid or missing status for judging result." });
+  }
+
+  try {
+    const submission = await Submission.findById(submissionId);
+
+    if (!submission) {
+      return res.status(404).send({ msg: "Submission not found." });
+    }
+
+    // Update submission status.
+    // More fields could be updated here if the Submission model is extended
+    // e.g., submission.executionOutput = executionOutput;
+    //      submission.compilerMessage = executionError; (if status is Compilation Error)
+    submission.status = status;
+
+    // If the problem's examples are used as test cases:
+    // A more complete judging logic would happen in the sandbox before calling this endpoint.
+    // The sandbox would compare problem.examples[i].output with actualOutput.
+    // If `status` is "Wrong Answer", `executionOutput` might be the actual output from the code.
+    // If `status` is "Accepted", it means all test cases (derived from problem.examples) passed.
+    // This endpoint just records the final status decided by the sandbox.
+
+    await submission.save();
+
+    res.status(200).send({ msg: "Submission status updated successfully.", submission });
+  } catch (err) {
+    console.error(`Error updating submission status for ${submissionId}:`, err);
+    res
+      .status(500)
+      .send({ msg: "Server error while updating submission status.", error: err.message });
+  }
+});
+
 router.all("*", (req, res) => {
   console.log(`API route not found: ${req.method} ${req.url}`);
   res.status(404).send({ msg: "API route not found" });
