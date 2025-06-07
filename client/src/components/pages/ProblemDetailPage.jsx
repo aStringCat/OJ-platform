@@ -29,7 +29,7 @@ const ProblemDetailPage = () => {
   const [isDraggingOver, setIsDraggingOver] = useState(false); // For drag-and-drop visual state
   const fileInputRef = useRef(null); // To potentially clear the input
 
-  const allowedFileTypes = [".py", ".js", ".java", ".cpp", ".c", ".txt"];
+  const allowedFileTypes = [".py", ".java", ".cpp", ".c", ".txt"];
   const acceptedFileTypesString = allowedFileTypes.join(",");
 
   useEffect(() => {
@@ -327,7 +327,7 @@ const ProblemDetailPage = () => {
                 onChange={handleLanguageChange}
               >
                 <MenuItem value="python">Python</MenuItem>
-                <MenuItem value="javascript">JavaScript</MenuItem>
+                <MenuItem value="c">C</MenuItem>
                 <MenuItem value="java">Java</MenuItem>
                 <MenuItem value="cpp">C++</MenuItem>
               </Select>

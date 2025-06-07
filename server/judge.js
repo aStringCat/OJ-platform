@@ -7,6 +7,7 @@ const Submission = require("./models/submission");
 const Problem = require("./models/problem");
 
 const PYTHON_IMAGE = "python:3.9-slim"; // Using a specific, lightweight Python image
+const C_IMAGE = "gcc:latest"; // Docker image with GCC compiler for C
 const TIME_LIMIT_MS = 2000; // Time limit for execution in milliseconds (e.g., 2 seconds)
 const MEMORY_LIMIT_MB = 256; // Memory limit in MB
 
@@ -66,17 +67,79 @@ async function judgeSubmission(submissionId) {
 
   const userCode = submission.code;
   const testCases = problem.cases;
+  const language = submission.language.toLowerCase();
   let finalStatus = "Judging"; // Default, will be updated based on test cases
 
   // Create a temporary directory for the user's code and any I/O files
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), `oj-python-${submissionId}-`));
-  const scriptFilename = "user_script.py";
-  const scriptPath = path.join(tempDir, scriptFilename);
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), `oj-${language}-${submissionId}-`));
+
+  // Prepare file paths and commands based on language
+  let codeFilePath, executablePath, imageName, execCmd;
+  if (language === 'python') {
+    codeFilePath = path.join(tempDir, "user_script.py");
+    imageName = PYTHON_IMAGE;
+    execCmd = ["python", "user_script.py"];
+  } else if (language === 'c') {
+    codeFilePath = path.join(tempDir, "user_code.c");
+    executablePath = path.join(tempDir, "a.out"); // Default GCC output
+    imageName = C_IMAGE;
+    execCmd = ["./a.out"];
+  } else {
+    console.warn(`[JudgeService] Unsupported language: ${language}. Marking as Compilation Error.`);
+    await Submission.findByIdAndUpdate(submissionId, { status: "Compilation Error" });
+    await fs.rm(tempDir, { recursive: true, force: true }).catch(e => console.warn(`Failed to clean temp dir ${tempDir}:`, e));
+    return;
+  }
 
   try {
-    await fs.writeFile(scriptPath, userCode);
-    console.log(`[JudgeService] User code for ${submissionId} written to ${scriptPath}`);
+    await fs.writeFile(codeFilePath, userCode);
+    console.log(`[JudgeService] User code for ${submissionId} written to ${codeFilePath}`);
 
+    // --- Compilation Step (for C language) ---
+    if (language === 'c') {
+      console.log(`[JudgeService] Compiling C code for submission ${submissionId}`);
+      let compileContainer;
+      try {
+        compileContainer = await docker.createContainer({
+          Image: imageName,
+          WorkingDir: "/usr/src/app",
+          Cmd: ["gcc", "user_code.c", "-o", "a.out"],
+          HostConfig: {
+            Mounts: [{
+              Target: "/usr/src/app",
+              Source: tempDir,
+              Type: "bind"
+            }],
+            Memory: MEMORY_LIMIT_MB * 1024 * 1024,
+            NetworkMode: "none",
+          },
+        });
+
+        await compileContainer.start();
+        const waitResult = await compileContainer.wait({ timeout: 5000 }); // 5-second compile time limit
+
+        if (waitResult.StatusCode !== 0) {
+          const logs = await compileContainer.logs({ stdout: true, stderr: true });
+          console.error(`[JudgeService] Compilation failed for ${submissionId}.`, logs.toString());
+          finalStatus = "Compilation Error";
+          // We will update status and clean up in the finally block.
+        } else {
+          console.log(`[JudgeService] Compilation successful for ${submissionId}.`);
+        }
+      } finally {
+        if (compileContainer) {
+          await compileContainer.remove({ force: true }).catch(e => console.warn(`Failed to remove compile container:`, e));
+        }
+     }
+   }
+    // If compilation failed, skip execution
+    if (finalStatus === "Compilation Error") {
+      // This throws an error to jump to the `catch` and `finally` blocks
+      // to ensure cleanup and status update happens in one place.
+      throw new Error("Compilation failed, aborting judgment.");
+    }
+
+    // --- Execution Step (for all languages) ---
     if (!testCases || testCases.length === 0) {
       // If there are no test cases, it can be considered "Accepted" or an error
       // For typical OJ, this might be a "System Error" or needs clarification.
@@ -87,31 +150,39 @@ async function judgeSubmission(submissionId) {
       );
     } else {
       console.log(`[JudgeService] Processing ${testCases.length} test cases for ${submissionId}.`);
-      for (let i = 0; i < testCases.length; i++) {
-        const testCase = testCases[i];
-        console.log(
-          `[JudgeService] Running test case ${i + 1}/${testCases.length} for ${submissionId}.`
-        );
+      for (let i = 0; i < testCases.length; i++) { const testCase = testCases[i];
+        console.log(`[JudgeService] Running test case ${i + 1}/${testCases.length} for ${submissionId}.`);
+        
+        const hostConfig = {
+                  Memory: MEMORY_LIMIT_MB * 1024 * 1024,
+                  NetworkMode: "none",
+                };
+        
+                // For C, we mount the entire directory to access the compiled file.
+                // For Python, we just need to mount the script.
+                if (language === 'c') {
+                  hostConfig.Mounts = [{
+                    Target: "/usr/src/app",
+                    Source: tempDir,
+                    Type: "bind",
+                    ReadOnly: true,
+                  }];
+                } else { // Python
+                  hostConfig.Mounts = [{
+                    Target: `/usr/src/app/user_script.py`,
+                    Source: codeFilePath,
+                    Type: "bind",
+                    ReadOnly: true,
+                  }];
+                }
 
         let container;
         try {
           container = await docker.createContainer({
-            Image: PYTHON_IMAGE,
-            Cmd: ["python", scriptFilename],
+            Image: imageName,
+            Cmd: execCmd,
             WorkingDir: "/usr/src/app",
-            HostConfig: {
-              Mounts: [
-                {
-                  Target: `/usr/src/app/${scriptFilename}`,
-                  Source: scriptPath,
-                  Type: "bind",
-                  ReadOnly: true,
-                },
-              ],
-              Memory: MEMORY_LIMIT_MB * 1024 * 1024, // In bytes
-              // NanoCPUs: 1 * 1000000000, // Equivalent to 1 CPU core
-              NetworkMode: "none", // Disable network access for security
-            },
+            HostConfig: hostConfig,
             AttachStdin: true,
             AttachStdout: true,
             AttachStderr: true,
@@ -229,7 +300,10 @@ async function judgeSubmission(submissionId) {
       `[JudgeService] Critical error during judging submission ${submissionId}:`,
       error
     );
-    finalStatus = "System Error";
+    // If status wasn't already set (e.g., Compilation Error), mark as System Error.
+    if (finalStatus === 'Judging') {
+        finalStatus = "System Error";
+      }
     // Optionally store error.message in submission.executionOutput
   } finally {
     await fs

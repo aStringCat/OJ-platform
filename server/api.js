@@ -180,9 +180,9 @@ router.post("/submit/:problemId", isAuthenticated, upload.single("codeFile"), as
   }
 
   // **Temporarily restrict to Python**
-  if (language.toLowerCase() !== "python") {
-    return res.status(400).send({ msg: "Only Python submissions are currently supported." });
-  }
+  // if (language.toLowerCase() !== "python") {
+  //   return res.status(400).send({ msg: "Only Python submissions are currently supported." });
+  // }
 
   try {
     const problem = await Problem.findOne({ problem_id: problemId });

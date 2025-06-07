@@ -250,7 +250,7 @@ const ProblemDetailPage = () => {
                 onChange={handleLanguageChange}
               >
                 <MenuItem value="python">Python</MenuItem>
-                <MenuItem value="javascript">JavaScript</MenuItem>
+                <MenuItem value="c">C</MenuItem>
                 <MenuItem value="java">Java</MenuItem>
                 <MenuItem value="cpp">C++</MenuItem>
                 {/* Add other supported languages from your README */}
