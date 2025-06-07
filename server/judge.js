@@ -6,6 +6,8 @@ const os = require("os");
 const Submission = require("./models/submission");
 const Problem = require("./models/problem");
 
+const { Readable } = require("stream");//fix
+
 const PYTHON_IMAGE = "python:3.9-slim"; // Using a specific, lightweight Python image
 const C_IMAGE = "gcc:latest"; // Docker image with GCC compiler for C
 const TIME_LIMIT_MS = 2000; // Time limit for execution in milliseconds (e.g., 2 seconds)
@@ -203,11 +205,16 @@ async function judgeSubmission(submissionId) {
           });
 
           // Write input to container's stdin
-          execStream.write(testCase.input + "\n"); // Ensure newline if script expects it
-          execStream.end(); // Close stdin to signal end of input
+          //execStream.write(testCase.input + "\n"); // Ensure newline if script expects it
+          //execStream.end(); // Close stdin to signal end of input
 
-          let stdout = "";
-          let stderr = "";
+          const inputStream = new Readable();
+          inputStream.push(testCase.input + "\n"); // 添加换行符以兼容 scanf 等函数
+          inputStream.push(null); // `null` 表示输入流结束 (EOF)
+          
+          // 将我们的输入流“管道”到容器的标准输入流中
+          inputStream.pipe(execStream);
+
           const stdoutChunks = [];
           const stderrChunks = [];
           
