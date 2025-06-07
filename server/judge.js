@@ -6,8 +6,10 @@ const os = require("os");
 const Submission = require("./models/submission");
 const Problem = require("./models/problem");
 
-const PYTHON_IMAGE = "python:3.9-slim"; // Using a specific, lightweight Python image
+const PYTHON_IMAGE = "python:3.12-slim"; // Using a specific, lightweight Python image
 const C_IMAGE = "gcc:latest"; // Docker image with GCC compiler for C
+const CPP_IMAGE = "gcc:latest"; // Can use the same GCC image for C++
+const JAVA_IMAGE = "openjdk:21-jdk-oracle";
 const TIME_LIMIT_MS = 2000; // Time limit for execution in milliseconds (e.g., 2 seconds)
 const MEMORY_LIMIT_MB = 256; // Memory limit in MB
 
@@ -74,16 +76,28 @@ async function judgeSubmission(submissionId) {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), `oj-${language}-${submissionId}-`));
 
   // Prepare file paths and commands based on language
-  let codeFilePath, executablePath, imageName, execCmd;
+  let codeFilePath, imageName, compileCmd, execCmd;
   if (language === "python") {
     codeFilePath = path.join(tempDir, "user_script.py");
     imageName = PYTHON_IMAGE;
+    compileCmd = null; // Python does not need a separate compilation step
     execCmd = ["python", "user_script.py"];
   } else if (language === "c") {
     codeFilePath = path.join(tempDir, "user_code.c");
-    executablePath = path.join(tempDir, "a.out"); // Default GCC output
     imageName = C_IMAGE;
+    compileCmd = ["gcc", "user_code.c", "-o", "a.out"];
     execCmd = ["./a.out"];
+  } else if (language === "cpp") {
+    codeFilePath = path.join(tempDir, "user_code.cpp");
+    imageName = CPP_IMAGE;
+    compileCmd = ["g++", "user_code.cpp", "-o", "a.out"];
+    execCmd = ["./a.out"];
+  } else if (language === "java") {
+    // For Java, the main class file must be named Main.java
+    codeFilePath = path.join(tempDir, "Main.java");
+    imageName = JAVA_IMAGE;
+    compileCmd = ["javac", "Main.java"];
+    execCmd = ["java", "Main"];
   } else {
     console.warn(`[JudgeService] Unsupported language: ${language}. Marking as Compilation Error.`);
     await Submission.findByIdAndUpdate(submissionId, { status: "Compilation Error" });
@@ -97,15 +111,15 @@ async function judgeSubmission(submissionId) {
     await fs.writeFile(codeFilePath, userCode);
     console.log(`[JudgeService] User code for ${submissionId} written to ${codeFilePath}`);
 
-    // --- Compilation Step (for C language) ---
-    if (language === "c") {
-      console.log(`[JudgeService] Compiling C code for submission ${submissionId}`);
+    // --- Compilation Step (for compiled languages like C, C++, Java) ---
+    if (compileCmd) {
+      console.log(`[JudgeService] Compiling ${language} code for submission ${submissionId}`);
       let compileContainer;
       try {
         compileContainer = await docker.createContainer({
           Image: imageName,
           WorkingDir: "/tmp",
-          Cmd: ["gcc", "user_code.c", "-o", "a.out"],
+          Cmd: compileCmd, // Use the dynamic compile command
           User: `${os.userInfo().uid}:${os.userInfo().gid}`,
           HostConfig: {
             Mounts: [
@@ -127,7 +141,6 @@ async function judgeSubmission(submissionId) {
           const logs = await compileContainer.logs({ stdout: true, stderr: true });
           console.error(`[JudgeService] Compilation failed for ${submissionId}.`, logs.toString());
           finalStatus = "Compilation Error";
-          // We will update status and clean up in the finally block.
         } else {
           console.log(`[JudgeService] Compilation successful for ${submissionId}.`);
         }
@@ -170,26 +183,17 @@ async function judgeSubmission(submissionId) {
 
         // For C, we mount the entire directory to access the compiled file.
         // For Python, we just need to mount the script.
-        if (language === "c") {
+        if (language === "c" || language === "cpp" || language === "java" || language === "python") {
           hostConfig.Mounts = [
             {
               Target: "/tmp",
               Source: tempDir,
               Type: "bind",
-              ReadOnly: true,
-            },
-          ];
-        } else {
-          // Python
-          hostConfig.Mounts = [
-            {
-              Target: `/usr/src/app/user_script.py`,
-              Source: codeFilePath,
-              Type: "bind",
-              ReadOnly: true,
+              ReadOnly: false, // Must be writable for input.txt
             },
           ];
         }
+        
 
         let container;
         try {
@@ -197,10 +201,11 @@ async function judgeSubmission(submissionId) {
           const inputFilePath = path.join(tempDir, "input.txt");
           await fs.writeFile(inputFilePath, testCase.input);
 
+          const workingDir = '/tmp';
           container = await docker.createContainer({
             Image: imageName,
-            Cmd: ["/bin/sh", "-c", "./a.out < input.txt"],
-            WorkingDir: "/tmp",
+            Cmd: ["/bin/sh", "-c", `${execCmd.join(" ")} < input.txt`], // Use dynamic execCmd
+            WorkingDir: workingDir, // Set working directory based on language
             HostConfig: hostConfig,
             AttachStdout: true,
             AttachStderr: true,
