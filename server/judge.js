@@ -102,11 +102,12 @@ async function judgeSubmission(submissionId) {
       try {
         compileContainer = await docker.createContainer({
           Image: imageName,
-          WorkingDir: "/usr/src/app",
+          WorkingDir: "/tmp",
           Cmd: ["gcc", "user_code.c", "-o", "a.out"],
+          User: `${os.userInfo().uid}:${os.userInfo().gid}`, 
           HostConfig: {
             Mounts: [{
-              Target: "/usr/src/app",
+              Target: "/tmp",
               Source: tempDir,
               Type: "bind"
             }],
@@ -162,7 +163,7 @@ async function judgeSubmission(submissionId) {
                 // For Python, we just need to mount the script.
                 if (language === 'c') {
                   hostConfig.Mounts = [{
-                    Target: "/usr/src/app",
+                    Target: "/tmp",
                     Source: tempDir,
                     Type: "bind",
                     ReadOnly: true,
@@ -181,7 +182,7 @@ async function judgeSubmission(submissionId) {
           container = await docker.createContainer({
             Image: imageName,
             Cmd: execCmd,
-            WorkingDir: "/usr/src/app",
+            WorkingDir: "/tmp",
             HostConfig: hostConfig,
             AttachStdin: true,
             AttachStdout: true,
