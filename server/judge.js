@@ -6,8 +6,6 @@ const os = require("os");
 const Submission = require("./models/submission");
 const Problem = require("./models/problem");
 
-const { Readable } = require("stream");//fix
-
 const PYTHON_IMAGE = "python:3.9-slim"; // Using a specific, lightweight Python image
 const C_IMAGE = "gcc:latest"; // Docker image with GCC compiler for C
 const TIME_LIMIT_MS = 2000; // Time limit for execution in milliseconds (e.g., 2 seconds)
@@ -181,39 +179,31 @@ async function judgeSubmission(submissionId) {
 
         let container;
         try {
+          // 步骤 1: 将测试用例的输入写入临时文件
+          const inputFilePath = path.join(tempDir, "input.txt");
+          await fs.writeFile(inputFilePath, testCase.input);
+
           container = await docker.createContainer({
             Image: imageName,
-            Cmd: execCmd,
+            // 步骤 2: 修改Cmd，使用shell进行输入重定向
+            Cmd: ["/bin/sh", "-c", "./a.out < input.txt"],
             WorkingDir: "/tmp",
             HostConfig: hostConfig,
-            AttachStdin: true,
+            // 步骤 3: 不再需要附加或打开 stdin
             AttachStdout: true,
             AttachStderr: true,
-            OpenStdin: true,
-            StdinOnce: false, // Important for streaming input
-            Tty: false, // Using non-TTY mode for easier stream separation
+            Tty: false,
           });
 
           const startTime = process.hrtime();
           await container.start();
 
+          // 步骤 4: 仅附加到输出流，不再有输入交互
           const execStream = await container.attach({
             stream: true,
-            stdin: true,
             stdout: true,
             stderr: true,
           });
-
-          // Write input to container's stdin
-          //execStream.write(testCase.input + "\n"); // Ensure newline if script expects it
-          //execStream.end(); // Close stdin to signal end of input
-
-          const inputStream = new Readable();
-          inputStream.push(testCase.input + "\n"); // 添加换行符以兼容 scanf 等函数
-          inputStream.push(null); // `null` 表示输入流结束 (EOF)
-          
-          // 将我们的输入流“管道”到容器的标准输入流中
-          inputStream.pipe(execStream);
 
           const stdoutChunks = [];
           const stderrChunks = [];
