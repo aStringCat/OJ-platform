@@ -210,21 +210,22 @@ async function judgeSubmission(submissionId) {
           let stderr = "";
           const stdoutChunks = [];
           const stderrChunks = [];
+          
+          // 此 Promise 将在容器的输出流结束时解决
+          const streamEndPromise = new Promise(resolve => {
+              container.modem.demuxStream(
+                  execStream,
+                  { write: (chunk) => stdoutChunks.push(chunk) },
+                  { write: (chunk) => stderrChunks.push(chunk) }
+              );
+              execStream.on('end', resolve);
+              execStream.on('error', resolve); // 在流出错时也解决，避免挂起
+          });
 
-          // Docker stream demultiplexing (when TTY is false)
-          container.modem.demuxStream(
-            execStream,
-            { write: (data) => stdoutChunks.push(data) },
-            { write: (data) => stderrChunks.push(data) }
-          );
-
-          // Wait for stream to end (all output consumed)
-
-          await new Promise((resolve) => execStream.on("end", resolve));
-
-          const waitOperation = container.wait({ timeout: TIME_LIMIT_MS }); // Wait for container to exit or timeout
+          // 并发地：比赛看是容器先执行完，还是先超时
+          const waitOperation = container.wait();
           const timeoutPromise = new Promise(
-            (_, reject) => setTimeout(() => reject(new Error("TLE_custom")), TIME_LIMIT_MS + 500) // Add a small buffer for docker wait itself
+            (_, reject) => setTimeout(() => reject(new Error("TLE_custom")), TIME_LIMIT_MS)
           );
 
           let waitResult;
@@ -235,34 +236,41 @@ async function judgeSubmission(submissionId) {
               finalStatus = "Time Limit Exceeded";
               console.log(`[JudgeService] Test case TLE for ${submissionId}.`);
               if (container) {
-                await container
-                  .stop({ t: 1 })
-                  .catch((e) => console.warn("Failed to stop TLE container:", e));
+                // 在超时后强制停止容器
+                await container.stop().catch(e => console.warn("Failed to stop TLE container:", e));
               }
-              break; // Stop further test cases
+            } else {
+              // 抛出其他致命错误
+              throw err;
             }
-            throw err; // Re-throw other errors
           }
+
+          // 等待流处理完成（现在应该会立刻完成，因为容器已停止）
+          await streamEndPromise;
 
           const endTime = process.hrtime(startTime);
           const durationMs = (endTime[0] * 1e9 + endTime[1]) / 1e6;
+
+          // 如果发生超时，直接跳出测试用例循环
+          if (finalStatus === "Time Limit Exceeded") {
+              console.log(`[JudgeService] Test case ${i + 1} for ${submissionId} exceeded time limit.`);
+              break;
+          }
+
           console.log(
             `[JudgeService] Test case ${i + 1} for ${submissionId} took ${durationMs.toFixed(
               2
             )}ms. Exit code: ${waitResult.StatusCode}`
           );
 
-          stdout = Buffer.concat(stdoutChunks).toString("utf-8").trim();
-          stderr = Buffer.concat(stderrChunks).toString("utf-8").trim();
-
-          if (finalStatus === "Time Limit Exceeded") break; // Already handled
+          const stdout = Buffer.concat(stdoutChunks).toString("utf-8").trim();
+          const stderr = Buffer.concat(stderrChunks).toString("utf-8").trim();
 
           if (waitResult.StatusCode !== 0) {
             finalStatus = "Runtime Error";
             console.log(
               `[JudgeService] Test case Runtime Error for ${submissionId}. stderr: ${stderr}`
             );
-            // Optionally store stderr in submission.executionOutput
             break;
           }
 
