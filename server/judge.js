@@ -75,11 +75,11 @@ async function judgeSubmission(submissionId) {
 
   // Prepare file paths and commands based on language
   let codeFilePath, executablePath, imageName, execCmd;
-  if (language === 'python') {
+  if (language === "python") {
     codeFilePath = path.join(tempDir, "user_script.py");
     imageName = PYTHON_IMAGE;
     execCmd = ["python", "user_script.py"];
-  } else if (language === 'c') {
+  } else if (language === "c") {
     codeFilePath = path.join(tempDir, "user_code.c");
     executablePath = path.join(tempDir, "a.out"); // Default GCC output
     imageName = C_IMAGE;
@@ -87,7 +87,9 @@ async function judgeSubmission(submissionId) {
   } else {
     console.warn(`[JudgeService] Unsupported language: ${language}. Marking as Compilation Error.`);
     await Submission.findByIdAndUpdate(submissionId, { status: "Compilation Error" });
-    await fs.rm(tempDir, { recursive: true, force: true }).catch(e => console.warn(`Failed to clean temp dir ${tempDir}:`, e));
+    await fs
+      .rm(tempDir, { recursive: true, force: true })
+      .catch((e) => console.warn(`Failed to clean temp dir ${tempDir}:`, e));
     return;
   }
 
@@ -96,7 +98,7 @@ async function judgeSubmission(submissionId) {
     console.log(`[JudgeService] User code for ${submissionId} written to ${codeFilePath}`);
 
     // --- Compilation Step (for C language) ---
-    if (language === 'c') {
+    if (language === "c") {
       console.log(`[JudgeService] Compiling C code for submission ${submissionId}`);
       let compileContainer;
       try {
@@ -104,13 +106,15 @@ async function judgeSubmission(submissionId) {
           Image: imageName,
           WorkingDir: "/tmp",
           Cmd: ["gcc", "user_code.c", "-o", "a.out"],
-          User: `${os.userInfo().uid}:${os.userInfo().gid}`, 
+          User: `${os.userInfo().uid}:${os.userInfo().gid}`,
           HostConfig: {
-            Mounts: [{
-              Target: "/tmp",
-              Source: tempDir,
-              Type: "bind"
-            }],
+            Mounts: [
+              {
+                Target: "/tmp",
+                Source: tempDir,
+                Type: "bind",
+              },
+            ],
             Memory: MEMORY_LIMIT_MB * 1024 * 1024,
             NetworkMode: "none",
           },
@@ -129,10 +133,12 @@ async function judgeSubmission(submissionId) {
         }
       } finally {
         if (compileContainer) {
-          await compileContainer.remove({ force: true }).catch(e => console.warn(`Failed to remove compile container:`, e));
+          await compileContainer
+            .remove({ force: true })
+            .catch((e) => console.warn(`Failed to remove compile container:`, e));
         }
-     }
-   }
+      }
+    }
     // If compilation failed, skip execution
     if (finalStatus === "Compilation Error") {
       // This throws an error to jump to the `catch` and `finally` blocks
@@ -151,31 +157,39 @@ async function judgeSubmission(submissionId) {
       );
     } else {
       console.log(`[JudgeService] Processing ${testCases.length} test cases for ${submissionId}.`);
-      for (let i = 0; i < testCases.length; i++) { const testCase = testCases[i];
-        console.log(`[JudgeService] Running test case ${i + 1}/${testCases.length} for ${submissionId}.`);
-        
+      for (let i = 0; i < testCases.length; i++) {
+        const testCase = testCases[i];
+        console.log(
+          `[JudgeService] Running test case ${i + 1}/${testCases.length} for ${submissionId}.`
+        );
+
         const hostConfig = {
-                  Memory: MEMORY_LIMIT_MB * 1024 * 1024,
-                  NetworkMode: "none",
-                };
-        
-                // For C, we mount the entire directory to access the compiled file.
-                // For Python, we just need to mount the script.
-                if (language === 'c') {
-                  hostConfig.Mounts = [{
-                    Target: "/tmp",
-                    Source: tempDir,
-                    Type: "bind",
-                    ReadOnly: true,
-                  }];
-                } else { // Python
-                  hostConfig.Mounts = [{
-                    Target: `/usr/src/app/user_script.py`,
-                    Source: codeFilePath,
-                    Type: "bind",
-                    ReadOnly: true,
-                  }];
-                }
+          Memory: MEMORY_LIMIT_MB * 1024 * 1024,
+          NetworkMode: "none",
+        };
+
+        // For C, we mount the entire directory to access the compiled file.
+        // For Python, we just need to mount the script.
+        if (language === "c") {
+          hostConfig.Mounts = [
+            {
+              Target: "/tmp",
+              Source: tempDir,
+              Type: "bind",
+              ReadOnly: true,
+            },
+          ];
+        } else {
+          // Python
+          hostConfig.Mounts = [
+            {
+              Target: `/usr/src/app/user_script.py`,
+              Source: codeFilePath,
+              Type: "bind",
+              ReadOnly: true,
+            },
+          ];
+        }
 
         let container;
         try {
@@ -185,11 +199,9 @@ async function judgeSubmission(submissionId) {
 
           container = await docker.createContainer({
             Image: imageName,
-            // 步骤 2: 修改Cmd，使用shell进行输入重定向
             Cmd: ["/bin/sh", "-c", "./a.out < input.txt"],
             WorkingDir: "/tmp",
             HostConfig: hostConfig,
-            // 步骤 3: 不再需要附加或打开 stdin
             AttachStdout: true,
             AttachStderr: true,
             Tty: false,
@@ -198,31 +210,9 @@ async function judgeSubmission(submissionId) {
           const startTime = process.hrtime();
           await container.start();
 
-          // 步骤 4: 仅附加到输出流，不再有输入交互
-          const execStream = await container.attach({
-            stream: true,
-            stdout: true,
-            stderr: true,
-          });
-
-          const stdoutChunks = [];
-          const stderrChunks = [];
-          
-          // 此 Promise 将在容器的输出流结束时解决
-          const streamEndPromise = new Promise(resolve => {
-              container.modem.demuxStream(
-                  execStream,
-                  { write: (chunk) => stdoutChunks.push(chunk) },
-                  { write: (chunk) => stderrChunks.push(chunk) }
-              );
-              execStream.on('end', resolve);
-              execStream.on('error', resolve); // 在流出错时也解决，避免挂起
-          });
-
-          // 并发地：比赛看是容器先执行完，还是先超时
           const waitOperation = container.wait();
-          const timeoutPromise = new Promise(
-            (_, reject) => setTimeout(() => reject(new Error("TLE_custom")), TIME_LIMIT_MS)
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("TLE_custom")), TIME_LIMIT_MS)
           );
 
           let waitResult;
@@ -233,35 +223,54 @@ async function judgeSubmission(submissionId) {
               finalStatus = "Time Limit Exceeded";
               console.log(`[JudgeService] Test case TLE for ${submissionId}.`);
               if (container) {
-                // 在超时后强制停止容器
-                await container.stop().catch(e => console.warn("Failed to stop TLE container:", e));
+                await container
+                  .stop({ t: 1 })
+                  .catch((e) => console.warn("Failed to stop TLE container:", e));
               }
             } else {
-              // 抛出其他致命错误
               throw err;
             }
           }
 
-          // 等待流处理完成（现在应该会立刻完成，因为容器已停止）
-          await streamEndPromise;
-
           const endTime = process.hrtime(startTime);
           const durationMs = (endTime[0] * 1e9 + endTime[1]) / 1e6;
 
-          // 如果发生超时，直接跳出测试用例循环
           if (finalStatus === "Time Limit Exceeded") {
-              console.log(`[JudgeService] Test case ${i + 1} for ${submissionId} exceeded time limit.`);
-              break;
+            console.log(
+              `[JudgeService] Test case ${i + 1} for ${submissionId} exceeded time limit.`
+            );
+            break;
           }
+
+          const logBuffer = await container.logs({ stdout: true, stderr: true });
+
+          let stdout = "";
+          let offset = 0;
+          while (offset < logBuffer.length) {
+            if (offset + 8 > logBuffer.length) {
+              break;
+            }
+            const length = logBuffer.readUInt32BE(offset + 4);
+            const nextOffset = offset + 8 + length;
+            if (nextOffset > logBuffer.length) {
+              break;
+            }
+
+            const streamType = logBuffer[offset];
+            if (streamType === 1) {
+              stdout += logBuffer.toString("utf-8", offset + 8, nextOffset);
+            }
+
+            offset = nextOffset;
+          }
+
+          stdout = stdout.trim();
 
           console.log(
             `[JudgeService] Test case ${i + 1} for ${submissionId} took ${durationMs.toFixed(
               2
             )}ms. Exit code: ${waitResult.StatusCode}`
           );
-
-          const stdout = Buffer.concat(stdoutChunks).toString("utf-8").trim();
-          const stderr = Buffer.concat(stderrChunks).toString("utf-8").trim();
 
           if (waitResult.StatusCode !== 0) {
             finalStatus = "Runtime Error";
@@ -307,9 +316,9 @@ async function judgeSubmission(submissionId) {
       error
     );
     // If status wasn't already set (e.g., Compilation Error), mark as System Error.
-    if (finalStatus === 'Judging') {
-        finalStatus = "System Error";
-      }
+    if (finalStatus === "Judging") {
+      finalStatus = "System Error";
+    }
     // Optionally store error.message in submission.executionOutput
   } finally {
     await fs
