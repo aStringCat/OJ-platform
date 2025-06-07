@@ -1,6 +1,5 @@
 import { useAuth } from "../../auth";
 import { Navigate, useLocation, Link } from "react-router-dom";
-import LoadingSpinner from "../modules/LoadingSpinner";
 
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
@@ -23,7 +22,12 @@ const ProfilePage = () => {
   const location = useLocation();
 
   if (isLoading) {
-    return <LoadingSpinner fullPage={true} message="Loading profile..." />;
+    return (
+      <Container maxWidth={false} sx={{ mt: 4, mb: 4, textAlign: "center" }}>
+        <CircularProgress />
+        <Typography>Loading profile...</Typography>
+      </Container>
+    );
   }
 
   if (!currentUser) {

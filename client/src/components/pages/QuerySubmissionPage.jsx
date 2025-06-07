@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../../auth";
 import { get } from "../../utilities";
-import { Link as RouterLink, Navigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 
 import {
   Container,
@@ -18,7 +18,6 @@ import {
   TableBody,
   Pagination,
   Chip,
-  Link,
 } from "@mui/material";
 import BackButton from "../modules/BackButton";
 
@@ -29,7 +28,6 @@ const getStatusColor = (status) => {
     case "Accepted":
       return "success";
     case "Wrong Answer":
-      return "error";
     case "Compilation Error":
       return "error";
     case "Time Limit Exceeded":
@@ -62,11 +60,12 @@ const QuerySubmission = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [page, setPage] = useState(1);
+  const navigate = useNavigate(); // Initialize the navigate function
 
   useEffect(() => {
     if (currentUser) {
       setLoading(true);
-      get("/api/submissions")
+      get("/api/submissions") //
         .then((data) => {
           setSubmissions(data);
           setLoading(false);
@@ -129,7 +128,6 @@ const QuerySubmission = () => {
               <Table stickyHeader aria-label="submission history table">
                 <TableHead>
                   <TableRow>
-                    <TableCell sx={{ fontWeight: "bold" }}>Problem ID</TableCell>
                     <TableCell sx={{ fontWeight: "bold" }}>Problem Name</TableCell>
                     <TableCell sx={{ fontWeight: "bold" }}>Difficulty</TableCell>
                     <TableCell sx={{ fontWeight: "bold" }}>Status</TableCell>
@@ -141,14 +139,18 @@ const QuerySubmission = () => {
                     <TableRow
                       key={sub._id}
                       hover
-                      sx={{ "&:last-child td, &:last-child th": { border: 0 } }}
+                      sx={{
+                        "&:last-child td, &:last-child th": { border: 0 },
+                        cursor: "pointer",
+                      }}
+                      // Use onClick for navigation instead of rendering the row as a link
+                      onClick={() => navigate(`/submission/${sub._id}`)}
                     >
                       <TableCell component="th" scope="row">
-                        <Link component={RouterLink} to={`/problem/${sub.problem?.problem_id}`}>
-                          {sub.problem?.problem_id || "N/A"}
-                        </Link>
+                        <Typography sx={{ color: "primary.main", fontWeight: 500 }}>
+                          {sub.problem?.problem_name || "Problem not found"}
+                        </Typography>
                       </TableCell>
-                      <TableCell>{sub.problem?.problem_name || "Problem not found"}</TableCell>
                       <TableCell>
                         <Typography
                           component="span"

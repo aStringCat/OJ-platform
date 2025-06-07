@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../auth";
 import BackButton from "../modules/BackButton";
 
@@ -12,7 +12,7 @@ import Divider from "@mui/material/Divider";
 import Alert from "@mui/material/Alert";
 import CircularProgress from "@mui/material/CircularProgress";
 
-export const LoginPage = () => {
+const LoginForm = ({ onSwitchToRegister }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -28,7 +28,7 @@ export const LoginPage = () => {
     setLoading(true);
     try {
       await login(email, password);
-      navigate(from, { replace: true, state: location.state?.from?.state }); // Persist nested state
+      navigate(from, { replace: true, state: location.state?.from?.state });
     } catch (err) {
       const errorMsg =
         err.data?.msg || err.message || "Failed to login. Please check your credentials.";
@@ -42,108 +42,80 @@ export const LoginPage = () => {
     <Box
       component="form"
       onSubmit={handleSubmit}
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        minHeight: "100vh",
-        backgroundColor: "#f0f2f5",
-        p: 2,
-      }}
+      sx={{ display: "flex", flexDirection: "column", gap: 2, width: "100%" }}
     >
-      <Paper
-        elevation={3}
+      <Typography variant="h5" component="h1" gutterBottom sx={{ fontWeight: "bold" }}>
+        Welcome to Kestrel
+      </Typography>
+      {error && (
+        <Alert severity="error" sx={{ width: "100%" }}>
+          {error}
+        </Alert>
+      )}
+      <TextField
+        label="Email"
+        variant="outlined"
+        fullWidth
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        required
+        type="email"
+        autoComplete="email"
+      />
+      <TextField
+        label="Password"
+        type="password"
+        variant="outlined"
+        fullWidth
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        required
+        autoComplete="current-password"
+      />
+      <Button
+        type="submit"
+        variant="contained"
+        color="primary"
+        fullWidth
+        disabled={loading}
         sx={{
-          p: 4,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: 2,
-          width: "100%",
-          maxWidth: "400px",
-          position: "relative",
+          borderRadius: "50px",
+          p: "10px 0",
+          fontWeight: "bold",
+          textTransform: "none",
+          fontSize: "1rem",
+          mt: 1,
         }}
       >
-        <BackButton sx={{ top: { xs: 12, sm: 16 }, left: { xs: 12, sm: 16 } }} />
-        <Typography variant="h5" component="h1" gutterBottom sx={{ fontWeight: "bold", mt: 3 }}>
-          Welcome to Kestrel
+        {loading ? <CircularProgress size={24} color="inherit" /> : "Log In"}
+      </Button>
+      <Box sx={{ width: "100%", display: "flex", alignItems: "center", my: 1 }}>
+        <Divider sx={{ flexGrow: 1 }} />
+        <Typography variant="body2" sx={{ px: 2, color: "text.secondary" }}>
+          OR
         </Typography>
-        {error && (
-          <Alert severity="error" sx={{ width: "100%", mb: 1 }}>
-            {error}
-          </Alert>
-        )}
-        <TextField
-          label="Email"
-          variant="outlined"
-          fullWidth
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          type="email"
-          autoComplete="email"
-        />
-        <TextField
-          label="Password"
-          type="password"
-          variant="outlined"
-          fullWidth
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          autoComplete="current-password"
-        />
-        <Button
-          type="submit"
-          variant="contained"
-          color="primary"
-          fullWidth
-          disabled={loading}
+        <Divider sx={{ flexGrow: 1 }} />
+      </Box>
+      <Typography variant="body2" sx={{ textAlign: "center" }}>
+        Don't have an account?{" "}
+        <Typography
+          component="span"
+          onClick={onSwitchToRegister}
           sx={{
-            borderRadius: "50px",
-            p: "10px 0",
             fontWeight: "bold",
-            textTransform: "none",
-            fontSize: "1rem",
-            mt: 1,
+            color: "secondary.main",
+            cursor: "pointer",
+            "&:hover": { textDecoration: "underline" },
           }}
         >
-          {loading ? <CircularProgress size={24} color="inherit" /> : "Log In"}
-        </Button>
-        <Box sx={{ width: "100%", display: "flex", alignItems: "center", my: 1 }}>
-          <Divider sx={{ flexGrow: 1 }} />
-          <Typography variant="body2" sx={{ px: 2, color: "text.secondary" }}>
-            OR
-          </Typography>
-          <Divider sx={{ flexGrow: 1 }} />
-        </Box>
-        <Typography variant="body2" sx={{ textAlign: "center" }}>
-          Don't have an account?{" "}
-          <Link
-            to="/register"
-            state={{ from: location.state?.from }}
-            style={{ textDecoration: "none" }}
-          >
-            <Typography
-              component="span"
-              sx={{
-                fontWeight: "bold",
-                color: "secondary.main",
-                cursor: "pointer",
-                "&:hover": { textDecoration: "underline" },
-              }}
-            >
-              Sign up
-            </Typography>
-          </Link>
+          Sign up
         </Typography>
-      </Paper>
+      </Typography>
     </Box>
   );
 };
 
-export const RegisterPage = () => {
+const RegisterForm = ({ onSwitchToLogin }) => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -165,7 +137,7 @@ export const RegisterPage = () => {
     setLoading(true);
     try {
       await register(name, email, password);
-      navigate(from, { replace: true, state: location.state?.from?.state }); // Persist nested state
+      navigate(from, { replace: true, state: location.state?.from?.state });
     } catch (err) {
       const errorMsg =
         err.data?.msg || err.message || "Failed to register. The email might already be in use.";
@@ -179,6 +151,97 @@ export const RegisterPage = () => {
     <Box
       component="form"
       onSubmit={handleSubmit}
+      sx={{ display: "flex", flexDirection: "column", gap: 2, width: "100%" }}
+    >
+      <Typography variant="h5" component="h1" gutterBottom sx={{ fontWeight: "bold" }}>
+        Create Account
+      </Typography>
+      {error && (
+        <Alert severity="error" sx={{ width: "100%" }}>
+          {error}
+        </Alert>
+      )}
+      <TextField
+        label="Username"
+        variant="outlined"
+        fullWidth
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        required
+        autoComplete="name"
+      />
+      <TextField
+        label="Email"
+        type="email"
+        variant="outlined"
+        fullWidth
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        required
+        autoComplete="email"
+      />
+      <TextField
+        label="Password"
+        type="password"
+        variant="outlined"
+        fullWidth
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        required
+        autoComplete="new-password"
+      />
+      <TextField
+        label="Confirm Password"
+        type="password"
+        variant="outlined"
+        fullWidth
+        value={confirmPassword}
+        onChange={(e) => setConfirmPassword(e.target.value)}
+        required
+        autoComplete="new-password"
+      />
+      <Button
+        type="submit"
+        variant="contained"
+        color="primary"
+        fullWidth
+        disabled={loading}
+        sx={{
+          borderRadius: "50px",
+          p: "10px 0",
+          fontWeight: "bold",
+          textTransform: "none",
+          fontSize: "1rem",
+          mt: 1,
+        }}
+      >
+        {loading ? <CircularProgress size={24} color="inherit" /> : "Sign Up"}
+      </Button>
+      <Typography variant="body2" sx={{ textAlign: "center", mt: 2 }}>
+        Already have an account?{" "}
+        <Typography
+          component="span"
+          onClick={onSwitchToLogin}
+          sx={{
+            fontWeight: "bold",
+            color: "secondary.main",
+            cursor: "pointer",
+            "&:hover": { textDecoration: "underline" },
+          }}
+        >
+          Log In
+        </Typography>
+      </Typography>
+    </Box>
+  );
+};
+
+// 主页面组件，管理登录/注册模式切换
+export const AuthPage = () => {
+  const [isRegister, setIsRegister] = useState(false);
+
+  return (
+    <Box
       sx={{
         display: "flex",
         flexDirection: "column",
@@ -196,97 +259,19 @@ export const RegisterPage = () => {
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          gap: 2,
           width: "100%",
           maxWidth: "400px",
           position: "relative",
         }}
       >
         <BackButton sx={{ top: { xs: 12, sm: 16 }, left: { xs: 12, sm: 16 } }} />
-        <Typography variant="h5" component="h1" gutterBottom sx={{ fontWeight: "bold", mt: 3 }}>
-          Create Account
-        </Typography>
-        {error && (
-          <Alert severity="error" sx={{ width: "100%", mb: 1 }}>
-            {error}
-          </Alert>
-        )}
-        <TextField
-          label="Username"
-          variant="outlined"
-          fullWidth
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-          autoComplete="name"
-        />
-        <TextField
-          label="Email"
-          type="email"
-          variant="outlined"
-          fullWidth
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          autoComplete="email"
-        />
-        <TextField
-          label="Password"
-          type="password"
-          variant="outlined"
-          fullWidth
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          autoComplete="new-password"
-        />
-        <TextField
-          label="Confirm Password"
-          type="password"
-          variant="outlined"
-          fullWidth
-          value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
-          required
-          autoComplete="new-password"
-        />
-        <Button
-          type="submit"
-          variant="contained"
-          color="primary"
-          fullWidth
-          disabled={loading}
-          sx={{
-            borderRadius: "50px",
-            p: "10px 0",
-            fontWeight: "bold",
-            textTransform: "none",
-            fontSize: "1rem",
-            mt: 1,
-          }}
-        >
-          {loading ? <CircularProgress size={24} color="inherit" /> : "Sign Up"}
-        </Button>
-        <Typography variant="body2" sx={{ textAlign: "center", mt: 2 }}>
-          Already have an account?{" "}
-          <Link
-            to="/login"
-            state={{ from: location.state?.from }}
-            style={{ textDecoration: "none" }}
-          >
-            <Typography
-              component="span"
-              sx={{
-                fontWeight: "bold",
-                color: "secondary.main",
-                cursor: "pointer",
-                "&:hover": { textDecoration: "underline" },
-              }}
-            >
-              Log In
-            </Typography>
-          </Link>
-        </Typography>
+        <Box sx={{ width: "100%", mt: 3 }}>
+          {isRegister ? (
+            <RegisterForm onSwitchToLogin={() => setIsRegister(false)} />
+          ) : (
+            <LoginForm onSwitchToRegister={() => setIsRegister(true)} />
+          )}
+        </Box>
       </Paper>
     </Box>
   );

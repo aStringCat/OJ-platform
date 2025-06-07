@@ -1,13 +1,13 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import ProblemCard from "../modules/ProblemCard";
-import LoadingSpinner from "../modules/LoadingSpinner";
 import { get } from "../../utilities";
 
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
 import Box from "@mui/material/Box";
 import Paper from "@mui/material/Paper";
+import CircularProgress from "@mui/material/CircularProgress";
 import { Pagination } from "@mui/material";
 
 const ITEMS_PER_PAGE = 10;
@@ -39,11 +39,10 @@ const Problems = () => {
 
   if (loading) {
     return (
-      <LoadingSpinner
-        fullPage={true}
-        message="Loading problems..."
-        sx={{ width: "90%", margin: "auto", mt: 4, mb: 4 }}
-      />
+      <Container maxWidth={false} sx={{ mt: 4, mb: 4, textAlign: "center" }}>
+        <CircularProgress />
+        <Typography>Loading problems...</Typography>
+      </Container>
     );
   }
 

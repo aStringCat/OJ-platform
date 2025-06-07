@@ -19,7 +19,6 @@ import IconButton from "@mui/material/IconButton";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CircularProgress from "@mui/material/CircularProgress";
 import Alert from "@mui/material/Alert";
-import LoadingSpinner from "../modules/LoadingSpinner"; // Ensure LoadingSpinner is imported
 
 const AddProblemPage = () => {
   const { currentUser, isLoading: authLoading } = useAuth();
@@ -177,7 +176,12 @@ const AddProblemPage = () => {
   };
 
   if (authLoading) {
-    return <LoadingSpinner fullPage={true} message="Checking authentication..." />; // Fixed: Added return
+    return (
+      <Container maxWidth={false} sx={{ mt: 4, mb: 4, textAlign: "center" }}>
+        <CircularProgress />
+        <Typography>Checking authentication...</Typography>
+      </Container>
+    );
   }
 
   if (!currentUser) {

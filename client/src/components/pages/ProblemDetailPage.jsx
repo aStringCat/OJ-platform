@@ -1,5 +1,5 @@
-import { useEffect, useState, useRef } from "react"; // Added useRef
-import { useParams } from "react-router-dom";
+import { useEffect, useState, useRef } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { get, post } from "../../utilities";
 import BackButton from "../modules/BackButton";
 
@@ -15,10 +15,11 @@ import FormControl from "@mui/material/FormControl";
 import InputLabel from "@mui/material/InputLabel";
 import Grid from "@mui/material/Grid";
 import Divider from "@mui/material/Divider";
-import CloudUploadIcon from "@mui/icons-material/CloudUpload"; // For visual cue
+import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 
 const ProblemDetailPage = () => {
   const { problemId } = useParams();
+  const navigate = useNavigate();
   const [problem, setProblem] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -26,8 +27,9 @@ const ProblemDetailPage = () => {
   const [language, setLanguage] = useState("python");
   const [selectedFile, setSelectedFile] = useState(null);
   const [submissionStatus, setSubmissionStatus] = useState("");
-  const [isDraggingOver, setIsDraggingOver] = useState(false); // For drag-and-drop visual state
-  const fileInputRef = useRef(null); // To potentially clear the input
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const fileInputRef = useRef(null);
 
   const allowedFileTypes = [".py", ".java", ".cpp", ".c", ".txt"];
   const acceptedFileTypesString = allowedFileTypes.join(",");
@@ -57,11 +59,10 @@ const ProblemDetailPage = () => {
         );
         setSelectedFile(null);
         if (fileInputRef.current) {
-          fileInputRef.current.value = ""; // Clear the file input
+          fileInputRef.current.value = "";
         }
         return;
       }
-      // Basic check for file size (e.g., 5MB limit, same as backend)
       if (file.size > 5 * 1024 * 1024) {
         setSubmissionStatus(`File is too large. Maximum size is 5MB.`);
         setSelectedFile(null);
@@ -70,7 +71,6 @@ const ProblemDetailPage = () => {
         }
         return;
       }
-
       setSelectedFile(file);
       setSubmissionStatus("");
     }
@@ -91,32 +91,25 @@ const ProblemDetailPage = () => {
       setSubmissionStatus("Please select a code file to submit.");
       return;
     }
-
+    setIsSubmitting(true);
     setSubmissionStatus("Submitting...");
     const formData = new FormData();
     formData.append("language", language);
     formData.append("codeFile", selectedFile);
-
     try {
       const response = await post(`/api/submit/${problemId}`, formData);
-      console.log("Submission successful:", response);
-      setSubmissionStatus(`Submission successful! Server says: ${response.msg}`);
-      setSelectedFile(null);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ""; // Clear the file input after successful submission
-      }
+      navigate(`/submission/${response.submissionId}`);
     } catch (err) {
       console.error("Submission failed:", err);
       const errorMsg = err.data?.msg || err.message || "Submission failed. Please try again.";
       setSubmissionStatus(errorMsg);
+      setIsSubmitting(false);
     }
   };
 
-  // Drag and Drop Handlers
   const handleDragOver = (event) => {
     event.preventDefault();
     event.stopPropagation();
-    // setIsDraggingOver(true); // Can set true here, or in handleDragEnter for more specific zone highlighting
   };
 
   const handleDragEnter = (event) => {
@@ -128,7 +121,6 @@ const ProblemDetailPage = () => {
   const handleDragLeave = (event) => {
     event.preventDefault();
     event.stopPropagation();
-    // Check if the leave target is outside the drop zone
     if (event.currentTarget.contains(event.relatedTarget)) {
       return;
     }
@@ -140,7 +132,7 @@ const ProblemDetailPage = () => {
     event.stopPropagation();
     setIsDraggingOver(false);
     if (event.dataTransfer.files && event.dataTransfer.files.length > 0) {
-      processAndSetFile(event.dataTransfer.files[0]); // Process the first dropped file
+      processAndSetFile(event.dataTransfer.files[0]);
       event.dataTransfer.clearData();
     }
   };
@@ -177,10 +169,7 @@ const ProblemDetailPage = () => {
 
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      {/* Paper is the relative anchor */}{" "}
       <Paper elevation={3} sx={{ p: { xs: 2, sm: 3 }, position: "relative" }}>
-        {" "}
-        {/* Added position: relative */}
         <BackButton sx={{ top: { xs: 16, sm: 24 }, left: { xs: 16, sm: 24 } }} />
         <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: "bold" }}>
           {problem.problem_name} ({problem.problem_id})
@@ -210,37 +199,7 @@ const ProblemDetailPage = () => {
             {problem.content || "No description provided."}
           </Typography>
         </Box>
-        {/* Input/Output Format, Constraints, Examples (assuming these are styled adequately) */}
-        {problem.inputFormat && (
-          <Box sx={{ mb: 3 }}>
-            <Typography variant="h6" gutterBottom>
-              Input Format
-            </Typography>
-            <Typography variant="body1" sx={{ whiteSpace: "pre-wrap" }}>
-              {problem.inputFormat}
-            </Typography>
-          </Box>
-        )}
-        {problem.outputFormat && (
-          <Box sx={{ mb: 3 }}>
-            <Typography variant="h6" gutterBottom>
-              Output Format
-            </Typography>
-            <Typography variant="body1" sx={{ whiteSpace: "pre-wrap" }}>
-              {problem.outputFormat}
-            </Typography>
-          </Box>
-        )}
-        {problem.constraints && (
-          <Box sx={{ mb: 3 }}>
-            <Typography variant="h6" gutterBottom>
-              Constraints
-            </Typography>
-            <Typography variant="body1" sx={{ whiteSpace: "pre-wrap" }}>
-              {problem.constraints}
-            </Typography>
-          </Box>
-        )}
+
         {problem.examples && problem.examples.length > 0 && (
           <Box sx={{ mb: 3 }}>
             <Typography variant="h6" gutterBottom>
@@ -311,44 +270,19 @@ const ProblemDetailPage = () => {
         <Typography variant="h5" component="h2" gutterBottom>
           Submit Solution
         </Typography>
-        <Grid container spacing={2} alignItems="flex-start">
-          {" "}
-          {/* Changed to flex-start */}
-          <Grid item xs={12} sm={4} md={3}>
-            {" "}
-            {/* Adjusted grid size */}
-            <FormControl fullWidth>
-              <InputLabel id="language-select-label">Language</InputLabel>
-              <Select
-                labelId="language-select-label"
-                id="language-select"
-                value={language}
-                label="Language"
-                onChange={handleLanguageChange}
-              >
-                <MenuItem value="python">Python</MenuItem>
-                <MenuItem value="c">C</MenuItem>
-                <MenuItem value="java">Java</MenuItem>
-                <MenuItem value="cpp">C++</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-          <Grid
-            item
-            xs={12}
-            onDragOver={handleDragOver}
-            onDragEnter={handleDragEnter}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            sx={{ mt: { xs: 1, sm: 0 } }} // Ensure spacing is good
-          >
+        <Grid container spacing={2}>
+          <Grid>
             <Box
-              component="label" // Make the whole box clickable for the input
+              component="label"
               htmlFor="code-file-input"
+              onDragOver={handleDragOver}
+              onDragEnter={handleDragEnter}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
               sx={{
                 border: isDraggingOver ? "2px dashed primary.main" : "2px dashed grey.500",
                 borderRadius: 1,
-                p: { xs: 2, sm: 4 }, // Responsive padding
+                p: { xs: 2, sm: 4 },
                 textAlign: "center",
                 cursor: "pointer",
                 backgroundColor: isDraggingOver ? "action.hover" : "transparent",
@@ -357,7 +291,8 @@ const ProblemDetailPage = () => {
                 flexDirection: "column",
                 alignItems: "center",
                 justifyContent: "center",
-                minHeight: "150px", // Ensure a decent drop area height
+                height: "100%",
+                minHeight: "220px",
               }}
             >
               <input
@@ -380,30 +315,53 @@ const ProblemDetailPage = () => {
               <Typography variant="body1" sx={{ color: "text.secondary" }}>
                 or click to select a file
               </Typography>
-              <Typography variant="caption" sx={{ color: "text.secondary", mt: 0.5 }}>
-                Allowed types: {allowedFileTypes.join(", ")}. Max 5MB.
-              </Typography>
+              {selectedFile ? (
+                <Typography
+                  variant="body2"
+                  sx={{ mt: 2, color: "primary.main", fontWeight: "bold" }}
+                >
+                  Selected: {selectedFile.name}
+                </Typography>
+              ) : (
+                <Typography variant="caption" sx={{ color: "text.secondary", mt: 1 }}>
+                  Allowed types: {allowedFileTypes.join(", ")}. Max 5MB.
+                </Typography>
+              )}
             </Box>
-            {selectedFile && (
-              <Typography variant="body2" sx={{ mt: 1, textAlign: "center" }}>
-                Selected file: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(2)} KB)
-              </Typography>
-            )}
           </Grid>
-          <Grid item xs={12} sx={{ textAlign: "center", mt: 2 }}>
-            {" "}
-            {/* Center submit button */}
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={handleSubmitCode}
-              disabled={!selectedFile} // Disable if no file is selected
-              sx={{ width: { xs: "100%", sm: "auto" }, minWidth: "150px" }}
-            >
-              Submit Code
-            </Button>
+
+          <Grid>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <FormControl fullWidth>
+                <InputLabel id="language-select-label">Language</InputLabel>
+                <Select
+                  labelId="language-select-label"
+                  id="language-select"
+                  value={language}
+                  label="Language"
+                  onChange={handleLanguageChange}
+                >
+                  <MenuItem value="python">Python</MenuItem>
+                  <MenuItem value="c">C</MenuItem>
+                  <MenuItem value="java">Java</MenuItem>
+                  <MenuItem value="cpp">C++</MenuItem>
+                </Select>
+              </FormControl>
+
+              <Button
+                variant="contained"
+                color="primary"
+                fullWidth
+                onClick={handleSubmitCode}
+                disabled={!selectedFile || isSubmitting}
+                sx={{ minHeight: "56px" }}
+              >
+                {isSubmitting ? <CircularProgress size={24} color="inherit" /> : "Submit Code"}
+              </Button>
+            </Box>
           </Grid>
         </Grid>
+
         {submissionStatus && (
           <Typography
             variant="body2"
