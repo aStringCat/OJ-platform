@@ -216,7 +216,7 @@ const AddProblemPage = () => {
         )}
         <Box component="form" onSubmit={handleSubmit} noValidate sx={{ mt: 1 }}>
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
+            <Grid>
               <TextField
                 margin="normal"
                 required
@@ -229,7 +229,7 @@ const AddProblemPage = () => {
                 autoFocus
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid>
               <TextField
                 margin="normal"
                 required
@@ -241,7 +241,7 @@ const AddProblemPage = () => {
                 onChange={handleChange}
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid>
               <FormControl fullWidth margin="normal">
                 <InputLabel id="difficulty-label">Difficulty</InputLabel>
                 <Select
@@ -260,13 +260,13 @@ const AddProblemPage = () => {
             </Grid>
           </Grid>
           <Grid>
-            <Grid item xs={12}>
+            <Grid>
               <TextField
                 margin="normal"
                 required
                 fullWidth
                 id="content"
-                label="Problem Content/Description (Markdown supported)"
+                label="Problem Content/Description"
                 name="content"
                 multiline
                 rows={6}

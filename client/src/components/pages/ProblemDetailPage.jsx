@@ -24,7 +24,7 @@ const ProblemDetailPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const [language, setLanguage] = useState("python");
+  const [language, setLanguage] = useState("c");
   const [selectedFile, setSelectedFile] = useState(null);
   const [submissionStatus, setSubmissionStatus] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -171,7 +171,12 @@ const ProblemDetailPage = () => {
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
       <Paper elevation={3} sx={{ p: { xs: 2, sm: 3 }, position: "relative" }}>
         <BackButton sx={{ top: { xs: 16, sm: 24 }, left: { xs: 16, sm: 24 } }} />
-        <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: "bold" }}>
+        <Typography
+          variant="h4"
+          component="h1"
+          gutterBottom
+          sx={{ textAlign: "center", fontWeight: "bold" }}
+        >
           {problem.problem_name} ({problem.problem_id})
         </Typography>
         <Typography variant="subtitle1" color="text.secondary" gutterBottom>
@@ -341,10 +346,10 @@ const ProblemDetailPage = () => {
                   label="Language"
                   onChange={handleLanguageChange}
                 >
-                  <MenuItem value="python">Python</MenuItem>
                   <MenuItem value="c">C</MenuItem>
-                  <MenuItem value="java">Java</MenuItem>
                   <MenuItem value="cpp">C++</MenuItem>
+                  <MenuItem value="python">Python</MenuItem>
+                  <MenuItem value="java">Java</MenuItem>
                 </Select>
               </FormControl>
 
