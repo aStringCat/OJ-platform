@@ -11,7 +11,7 @@ const C_IMAGE = "gcc:latest"; // Docker image with GCC compiler for C
 const CPP_IMAGE = "gcc:latest"; // Can use the same GCC image for C++
 const JAVA_IMAGE = "openjdk:21-jdk-oracle";
 const TIME_LIMIT_MS = 2000; // Time limit for execution in milliseconds (e.g., 2 seconds)
-const MEMORY_LIMIT_MB = 256; // Memory limit in MB
+const MEMORY_LIMIT_MB = 256; // Memory limit in MB 
 
 /**
  * Judges a given submission.
