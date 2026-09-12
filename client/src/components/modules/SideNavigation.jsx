@@ -15,10 +15,7 @@ import { styled } from "@mui/material/styles";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import ListAltIcon from "@mui/icons-material/ListAlt";
 import HistoryIcon from "@mui/icons-material/History";
-import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
-import LeaderboardIcon from "@mui/icons-material/Leaderboard";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
-import SettingsIcon from "@mui/icons-material/Settings";
 import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
 
 const drawerWidth = 240;
@@ -73,19 +70,14 @@ const StyledDrawer = styled(Drawer, { shouldForwardProp: (prop) => prop !== "ope
 const navList1 = [
   { title: "Dashboard", icon: <DashboardIcon />, path: "/dashboard" },
   { title: "Problems", icon: <ListAltIcon />, path: "/problems" },
-  // { title: "My Submissions", icon: <HistoryIcon />, path: "/submissions" }, // Example: could be auth-dependent
-  { title: "Contests", icon: <EmojiEventsIcon />, path: "/contests" },
-  { title: "Standings", icon: <LeaderboardIcon />, path: "/standings" },
 ];
 
 const navListActions = [
+  { title: "My Submissions", icon: <HistoryIcon />, path: "/submissions" },
   { title: "Add Problem", icon: <AddCircleOutlineIcon />, path: "/add-problem" },
 ];
 
-const navList2 = [
-  { title: "User Profile", icon: <AccountCircleIcon />, path: "/profile" },
-  // { title: "Settings", icon: <SettingsIcon />, path: "/settings" }, // Example
-];
+const navList2 = [{ title: "User Profile", icon: <AccountCircleIcon />, path: "/profile" }];
 
 // Accept currentUser as a prop
 const SideNavigation = ({ currentUser }) => {
@@ -195,9 +187,13 @@ const SideNavigation = ({ currentUser }) => {
             <List>{actionNavItems}</List>
           </>
         )}
-        <Divider />
-        <List>{userNavItems}</List>
-        <Divider />
+        {currentUser && (
+          <>
+            <Divider />
+            <List>{userNavItems}</List>
+            <Divider />
+          </>
+        )}
       </StyledDrawer>
     </Box>
   );

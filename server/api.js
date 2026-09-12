@@ -5,12 +5,16 @@ const Submission = require("./models/submission");
 const bcrypt = require("bcryptjs");
 const multer = require("multer");
 const mongoose = require("mongoose");
-
-// Import the judge service
-const { judgeSubmission } = require("./judge"); // Adjust path if necessary
+const { validateCheckerCode } = require("./judge");
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } }); // 5MB limit
 const router = express.Router();
+const supportedLanguages = {
+  c: [".c"],
+  cpp: [".cpp", ".cc", ".cxx"],
+  python: [".py"],
+  java: [".java"],
+};
 
 const isAuthenticated = (req, res, next) => {
   if (req.session.userId) {
@@ -22,9 +26,16 @@ const isAuthenticated = (req, res, next) => {
 // --- User Auth Routes ---
 // ... (keep existing auth routes: /register, /login, /whoami, /logout) ...
 router.post("/register", async (req, res) => {
-  const { name, email, password } = req.body;
+  const name = typeof req.body.name === "string" ? req.body.name.trim() : "";
+  const email = typeof req.body.email === "string" ? req.body.email.trim().toLowerCase() : "";
+  const { password } = req.body;
 
-  if (!name || !email || !password) {
+  if (
+    !name ||
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+    typeof password !== "string" ||
+    !password
+  ) {
     return res.status(400).send({ msg: "Name, email, and password are required." });
   }
 
@@ -45,7 +56,10 @@ router.post("/register", async (req, res) => {
 
     await user.save();
 
-    req.session.userId = user._id;
+    await new Promise((resolve, reject) =>
+      req.session.regenerate((error) => (error ? reject(error) : resolve()))
+    );
+    req.session.userId = user._id.toString();
     req.session.userName = user.name;
     req.session.userEmail = user.email;
 
@@ -56,15 +70,19 @@ router.post("/register", async (req, res) => {
       msg: "User registered and logged in successfully",
     });
   } catch (err) {
+    if (err.code === 11000) {
+      return res.status(400).send({ msg: "User already exists with this email." });
+    }
     console.error("Registration error:", err);
     res.status(500).send({ msg: "Server error during registration.", error: err.message });
   }
 });
 
 router.post("/login", async (req, res) => {
-  const { email, password } = req.body;
+  const email = typeof req.body.email === "string" ? req.body.email.trim().toLowerCase() : "";
+  const { password } = req.body;
 
-  if (!email || !password) {
+  if (!email || typeof password !== "string" || !password) {
     return res.status(400).send({ msg: "Email and password are required." });
   }
 
@@ -79,7 +97,10 @@ router.post("/login", async (req, res) => {
       return res.status(400).send({ msg: "Invalid credentials. Password incorrect." });
     }
 
-    req.session.userId = user._id;
+    await new Promise((resolve, reject) =>
+      req.session.regenerate((error) => (error ? reject(error) : resolve()))
+    );
+    req.session.userId = user._id.toString();
     req.session.userName = user.name;
     req.session.userEmail = user.email;
 
@@ -118,10 +139,19 @@ router.post("/logout", (req, res) => {
   });
 });
 
+router.post("/checker/validate", isAuthenticated, async (req, res) => {
+  const result = await validateCheckerCode(req.body.checkerCode);
+  if (result.systemError) {
+    return res.status(503).send(result);
+  }
+  res.status(result.valid ? 200 : 400).send(result);
+});
+
 // --- Problem Routes ---
 // ... (keep existing problem routes: /problems, /problem/:problemId, /problem POST) ...
 router.get("/problems", (_req, res) => {
   Problem.find({})
+    .select("problem_id problem_name problem_difficulty createdAt")
     .sort({ createdAt: -1 })
     .then((problems) => res.send(problems))
     .catch((err) => res.status(500).send({ msg: "Error fetching problems", error: err }));
@@ -129,6 +159,7 @@ router.get("/problems", (_req, res) => {
 
 router.get("/problem/:problemId", (req, res) => {
   Problem.findOne({ problem_id: req.params.problemId })
+    .select("-cases -checkerCode")
     .then((problem) => {
       if (!problem) {
         return res.status(404).send({ msg: "Problem not found" });
@@ -138,19 +169,97 @@ router.get("/problem/:problemId", (req, res) => {
     .catch((err) => res.status(500).send({ msg: "Error fetching problem", error: err }));
 });
 
-router.post("/problem", isAuthenticated, (req, res) => {
+router.post("/problem", isAuthenticated, async (req, res) => {
+  const {
+    problem_id,
+    problem_name,
+    problem_difficulty,
+    content,
+    examples = [],
+    cases,
+    judgeMode = "standard",
+    checkerCode = "",
+  } = req.body;
+
+  if (
+    [problem_id, problem_name, content].some((value) => typeof value !== "string" || !value.trim())
+  ) {
+    return res.status(400).send({ msg: "Problem ID, name, and content are required." });
+  }
+  if (!["easy", "medium", "hard"].includes(problem_difficulty)) {
+    return res.status(400).send({ msg: "Difficulty must be easy, medium, or hard." });
+  }
+  if (!/^[A-Za-z0-9_-]+$/.test(problem_id.trim())) {
+    return res
+      .status(400)
+      .send({ msg: "Problem ID may contain letters, numbers, underscores, and hyphens." });
+  }
+  if (
+    !["standard", "python"].includes(judgeMode) ||
+    typeof checkerCode !== "string" ||
+    Buffer.byteLength(checkerCode, "utf8") > 65536 ||
+    (judgeMode === "python" && !checkerCode.trim())
+  ) {
+    return res
+      .status(400)
+      .send({ msg: "Select a valid judge mode and provide a Python checker (maximum 64KB)." });
+  }
+  if (judgeMode === "python") {
+    const checkerValidation = await validateCheckerCode(checkerCode);
+    if (!checkerValidation.valid) {
+      return res.status(checkerValidation.systemError ? 503 : 400).send({
+        msg: checkerValidation.message,
+        valid: false,
+      });
+    }
+  }
+  if (
+    !Array.isArray(examples) ||
+    examples.some(
+      (example) =>
+        !example ||
+        typeof example.input !== "string" ||
+        typeof example.output !== "string" ||
+        !example.output ||
+        (example.explanation !== undefined && typeof example.explanation !== "string")
+    )
+  ) {
+    return res.status(400).send({ msg: "Examples must include string input and output fields." });
+  }
+  if (!Array.isArray(cases) || cases.length === 0 || cases.length > 100) {
+    return res.status(400).send({ msg: "Provide between 1 and 100 test cases." });
+  }
+  if (
+    cases.some(
+      (problemCase) =>
+        !problemCase ||
+        typeof problemCase.input !== "string" ||
+        typeof problemCase.output !== "string"
+    )
+  ) {
+    return res.status(400).send({ msg: "Every test case must include input and output." });
+  }
+
   const newProblem = new Problem({
-    problem_id: req.body.problem_id,
-    problem_name: req.body.problem_name,
-    problem_difficulty: req.body.problem_difficulty,
-    content: req.body.content,
-    examples: req.body.examples || [],
-    cases: req.body.cases || [],
+    problem_id: problem_id.trim(),
+    problem_name: problem_name.trim(),
+    problem_difficulty,
+    content: content.trim(),
+    judgeMode,
+    checkerCode: judgeMode === "python" ? checkerCode : "",
+    examples,
+    cases,
   });
 
   newProblem
     .save()
-    .then((problem) => res.send(problem))
+    .then((problem) =>
+      res.status(201).send({
+        _id: problem._id,
+        problem_id: problem.problem_id,
+        problem_name: problem.problem_name,
+      })
+    )
     .catch((err) => {
       if (err.code === 11000) {
         return res.status(400).send({
@@ -158,7 +267,9 @@ router.post("/problem", isAuthenticated, (req, res) => {
           error: err.message,
         });
       }
-      res.status(500).send({ msg: "Error saving problem", error: err.message });
+      res
+        .status(err.name === "ValidationError" ? 400 : 500)
+        .send({ msg: "Error saving problem", error: err.message });
     });
 });
 
@@ -167,7 +278,7 @@ router.post("/problem", isAuthenticated, (req, res) => {
 // Submit solution
 router.post("/submit/:problemId", isAuthenticated, upload.single("codeFile"), async (req, res) => {
   const { problemId } = req.params;
-  const { language } = req.body; // Language from form data (e.g., hidden input or part of FormData)
+  const language = typeof req.body.language === "string" ? req.body.language.toLowerCase() : "";
   const userId = req.session.userId;
 
   if (!req.file) {
@@ -175,14 +286,18 @@ router.post("/submit/:problemId", isAuthenticated, upload.single("codeFile"), as
   }
   const code = req.file.buffer.toString("utf-8");
 
-  if (!code || !language) {
+  if (!code.trim() || !language) {
     return res.status(400).send({ msg: "Code (from file) and language are required." });
   }
 
-  // **Temporarily restrict to Python**
-  // if (language.toLowerCase() !== "python") {
-  //   return res.status(400).send({ msg: "Only Python submissions are currently supported." });
-  // }
+  if (!Object.hasOwn(supportedLanguages, language)) {
+    return res.status(400).send({ msg: "Unsupported programming language." });
+  }
+
+  const fileName = req.file.originalname.toLowerCase();
+  if (!supportedLanguages[language].some((extension) => fileName.endsWith(extension))) {
+    return res.status(400).send({ msg: "The uploaded file does not match the selected language." });
+  }
 
   try {
     const problem = await Problem.findOne({ problem_id: problemId });
@@ -202,20 +317,7 @@ router.post("/submit/:problemId", isAuthenticated, upload.single("codeFile"), as
 
     const savedSubmission = await newSubmission.save();
 
-    // Asynchronously trigger judging - DO NOT await this in the HTTP request handler
-    // This allows the server to respond quickly to the user.
-    judgeSubmission(savedSubmission._id).catch((err) => {
-      console.error(`[API] Error triggering judge for submission ${savedSubmission._id}:`, err);
-      // Attempt to mark the submission as a System Error if judge initiation fails
-      Submission.findByIdAndUpdate(savedSubmission._id, {
-        status: "System Error" /*, executionOutput: "Failed to initiate judging process." */,
-      }).catch((dbErr) =>
-        console.error(
-          `[API] Failed to mark submission ${savedSubmission._id} as System Error after judge init failure:`,
-          dbErr
-        )
-      );
-    });
+    // The bounded worker picks up Pending submissions from MongoDB.
 
     res.status(201).send({
       msg: "Submission received and is pending evaluation.",
@@ -235,6 +337,7 @@ router.get("/submissions", isAuthenticated, async (req, res) => {
   try {
     const userId = new mongoose.Types.ObjectId(req.session.userId);
     const submissions = await Submission.find({ user: userId })
+      .select("-code -message")
       .sort({ createdAt: -1 })
       .populate("problem", "problem_id problem_name problem_difficulty"); // Populate problem details
 
@@ -247,6 +350,10 @@ router.get("/submissions", isAuthenticated, async (req, res) => {
 
 // Get a single submission's details (for the owner)
 router.get("/submission/:submissionId", isAuthenticated, async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.submissionId)) {
+    return res.status(404).send({ msg: "Submission not found." });
+  }
+
   try {
     const submission = await Submission.findById(req.params.submissionId).populate(
       "problem",
@@ -265,63 +372,6 @@ router.get("/submission/:submissionId", isAuthenticated, async (req, res) => {
   } catch (err) {
     console.error("[API] Error fetching single submission:", err);
     res.status(500).send({ msg: "Server error while fetching submission.", error: err.message });
-  }
-});
-
-// --- Placeholder Judge Endpoints (can be removed or adapted if judge is internal) ---
-// These were for a hypothetical external judge.
-// Since judgeSubmission is now called internally, these might not be directly used in the same way.
-
-router.get("/submissions/next_to_judge", async (_req, res) => {
-  // This endpoint might still be useful for an external worker, or for internal prioritization logic
-  // For now, it's not directly used by the judgeSubmission flow above.
-  try {
-    const submission = await Submission.findOneAndUpdate(
-      { status: "Pending" },
-      { $set: { status: "Judging" } },
-      { sort: { createdAt: 1 }, new: true }
-    ).populate("problem");
-
-    if (!submission) {
-      return res.status(200).send({ msg: "No pending submissions to judge." });
-    }
-    res.status(200).send(submission);
-  } catch (err) {
-    console.error("Error fetching submission for judging:", err);
-    res
-      .status(500)
-      .send({ msg: "Server error while fetching submission for judging.", error: err.message });
-  }
-});
-
-router.post("/submission/:submissionId/judge_result", async (req, res) => {
-  // This endpoint would be called by an external judge.
-  // The internal judgeSubmission directly updates the DB.
-  const { submissionId } = req.params;
-  const { status /*, output, error */ } = req.body;
-
-  const validStatuses = Submission.schema.path("status").enumValues;
-  if (!status || !validStatuses.includes(status)) {
-    return res.status(400).send({ msg: "Invalid or missing status for judging result." });
-  }
-
-  try {
-    const updatedSubmission = await Submission.findByIdAndUpdate(
-      submissionId,
-      { status: status /*, executionOutput: output || error */ },
-      { new: true }
-    );
-    if (!updatedSubmission) {
-      return res.status(404).send({ msg: "Submission not found to update." });
-    }
-    res
-      .status(200)
-      .send({ msg: "Submission status updated successfully.", submission: updatedSubmission });
-  } catch (err) {
-    console.error(`Error updating submission status for ${submissionId}:`, err);
-    res
-      .status(500)
-      .send({ msg: "Server error while updating submission status.", error: err.message });
   }
 });
 

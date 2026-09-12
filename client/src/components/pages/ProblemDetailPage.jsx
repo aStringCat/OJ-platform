@@ -1,7 +1,9 @@
 import { useEffect, useState, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useLocation, useParams, useNavigate } from "react-router-dom";
 import { get, post } from "../../utilities";
+import { useAuth } from "../../auth";
 import BackButton from "../modules/BackButton";
+import ContentRenderer from "../modules/ContentRenderer";
 
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
@@ -20,6 +22,8 @@ import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 const ProblemDetailPage = () => {
   const { problemId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const { currentUser } = useAuth();
   const [problem, setProblem] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -31,23 +35,40 @@ const ProblemDetailPage = () => {
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const fileInputRef = useRef(null);
 
-  const allowedFileTypes = [".py", ".java", ".cpp", ".c", ".txt"];
+  const fileLanguages = {
+    ".c": "c",
+    ".cpp": "cpp",
+    ".cc": "cpp",
+    ".cxx": "cpp",
+    ".py": "python",
+    ".java": "java",
+  };
+  const allowedFileTypes = Object.keys(fileLanguages);
   const acceptedFileTypesString = allowedFileTypes.join(",");
 
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
+    setError(null);
+    setSelectedFile(null);
+    setSubmissionStatus("");
     get(`/api/problem/${problemId}`)
       .then((data) => {
+        if (cancelled) return;
         setProblem(data);
         setLoading(false);
       })
       .catch((err) => {
+        if (cancelled) return;
         console.error("Failed to fetch problem details:", err);
         setError(
           `Failed to load problem ${problemId}. It might not exist or there was a server error.`
         );
         setLoading(false);
       });
+    return () => {
+      cancelled = true;
+    };
   }, [problemId]);
 
   const processAndSetFile = (file) => {
@@ -72,6 +93,7 @@ const ProblemDetailPage = () => {
         return;
       }
       setSelectedFile(file);
+      setLanguage(fileLanguages[fileExtension]);
       setSubmissionStatus("");
     }
   };
@@ -87,6 +109,10 @@ const ProblemDetailPage = () => {
   };
 
   const handleSubmitCode = async () => {
+    if (!currentUser) {
+      navigate("/login", { state: { from: location } });
+      return;
+    }
     if (!selectedFile) {
       setSubmissionStatus("Please select a code file to submit.");
       return;
@@ -187,22 +213,24 @@ const ProblemDetailPage = () => {
                 problem.problem_difficulty === "hard"
                   ? "red"
                   : problem.problem_difficulty === "medium"
-                  ? "orange"
-                  : "green",
+                    ? "orange"
+                    : "green",
               fontWeight: "bold",
             }}
           >
             {problem.problem_difficulty}
           </span>
         </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Judging:{" "}
+          {problem.judgeMode === "python" ? "Python checker" : "Standard output comparison"}
+        </Typography>
         <Divider sx={{ my: 2 }} />
         <Box sx={{ mb: 3 }}>
           <Typography variant="h6" gutterBottom>
             Description
           </Typography>
-          <Typography variant="body1" sx={{ whiteSpace: "pre-wrap" }}>
-            {problem.content || "No description provided."}
-          </Typography>
+          <ContentRenderer content={problem.content} />
         </Box>
 
         {problem.examples && problem.examples.length > 0 && (
@@ -258,13 +286,9 @@ const ProblemDetailPage = () => {
                     <Typography variant="body2" sx={{ fontWeight: "medium", mt: 1 }}>
                       Explanation:
                     </Typography>
-                    <Typography
-                      variant="body2"
-                      component="div"
-                      sx={{ whiteSpace: "pre-wrap", mt: 0.5 }}
-                    >
-                      {example.explanation}
-                    </Typography>
+                    <Box sx={{ mt: 0.5 }}>
+                      <ContentRenderer content={example.explanation} />
+                    </Box>
                   </>
                 )}
               </Paper>
@@ -358,10 +382,16 @@ const ProblemDetailPage = () => {
                 color="primary"
                 fullWidth
                 onClick={handleSubmitCode}
-                disabled={!selectedFile || isSubmitting}
+                disabled={(currentUser && !selectedFile) || isSubmitting}
                 sx={{ minHeight: "56px" }}
               >
-                {isSubmitting ? <CircularProgress size={24} color="inherit" /> : "Submit Code"}
+                {isSubmitting ? (
+                  <CircularProgress size={24} color="inherit" />
+                ) : currentUser ? (
+                  "Submit Code"
+                ) : (
+                  "Log in to Submit"
+                )}
               </Button>
             </Box>
           </Grid>

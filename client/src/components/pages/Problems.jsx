@@ -26,7 +26,9 @@ const Problems = () => {
       })
       .catch((err) => {
         console.error("Failed to fetch problems:", err);
-        setError("Failed to load problems. Please try again later.");
+        setError(
+          err.data?.msg || err.message || "Failed to load problems. Please try again later."
+        );
         setLoading(false);
       });
   }, []);
@@ -145,14 +147,16 @@ const Problems = () => {
           <Box sx={{ display: "flex", flexDirection: "column" }}>{problemsList}</Box>
         </Paper>
       )}
-      <Box sx={{ display: "flex", justifyContent: "center", mt: 3 }}>
-        <Pagination
-          count={Math.ceil(problems.length / ITEMS_PER_PAGE)}
-          page={page}
-          onChange={handleChangePage}
-          color="primary"
-        />
-      </Box>
+      {problems.length > ITEMS_PER_PAGE && (
+        <Box sx={{ display: "flex", justifyContent: "center", mt: 3 }}>
+          <Pagination
+            count={Math.ceil(problems.length / ITEMS_PER_PAGE)}
+            page={page}
+            onChange={handleChangePage}
+            color="primary"
+          />
+        </Box>
+      )}
     </Container>
   );
 };

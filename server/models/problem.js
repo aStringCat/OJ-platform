@@ -2,21 +2,44 @@ const mongoose = require("mongoose");
 
 const ProblemSchema = new mongoose.Schema(
   {
-    problem_id: String,
-    problem_name: String,
-    problem_difficulty: String,
-    content: String,
+    problem_id: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true,
+    },
+    problem_name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    problem_difficulty: {
+      type: String,
+      enum: ["easy", "medium", "hard"],
+      required: true,
+    },
+    content: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    judgeMode: {
+      type: String,
+      enum: ["standard", "python"],
+      default: "standard",
+    },
+    checkerCode: { type: String, default: "", maxlength: 65536 },
     examples: [
       {
-        input: String,
-        output: String,
+        input: { type: String, default: "" },
+        output: { type: String, required: true },
         explanation: String,
       },
     ],
     cases: [
       {
-        input: String,
-        output: String,
+        input: { type: String, default: "" },
+        output: { type: String, default: "" },
       },
     ],
   },

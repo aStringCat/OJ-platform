@@ -1,341 +1,239 @@
-const Docker = require("dockerode");
-const docker = new Docker(); // Assumes Docker is running locally and accessible
 const fs = require("fs").promises;
 const path = require("path");
-const os = require("os");
 const Submission = require("./models/submission");
 const Problem = require("./models/problem");
+const { runContainer } = require("./judgeRunner");
 
-const PYTHON_IMAGE = "python:3.12-slim"; // Using a specific, lightweight Python image
-const C_IMAGE = "gcc:latest"; // Docker image with GCC compiler for C
-const CPP_IMAGE = "gcc:latest"; // Can use the same GCC image for C++
-const JAVA_IMAGE = "openjdk:21-jdk-oracle";
-const TIME_LIMIT_MS = 2000; // Time limit for execution in milliseconds (e.g., 2 seconds)
-const MEMORY_LIMIT_MB = 256; // Memory limit in MB 
+const PYTHON_IMAGE = "python:3.12-slim";
+const CHECKER_VALIDATOR = [
+  "import ast, pathlib, sys",
+  "try:",
+  "    tree = ast.parse(pathlib.Path('checker.py').read_text(), filename='checker.py')",
+  "except SyntaxError as error:",
+  "    print(f'Line {error.lineno}: {error.msg}')",
+  "    sys.exit(1)",
+  "functions = [node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == 'check']",
+  "if len(functions) != 1:",
+  "    print('Define exactly one top-level check function.')",
+  "    sys.exit(1)",
+  "arguments = functions[0].args",
+  "if len(arguments.posonlyargs) + len(arguments.args) != 3 or arguments.vararg or arguments.kwarg or arguments.kwonlyargs:",
+  "    print('check must accept exactly: input_data, expected_output, actual_output.')",
+  "    sys.exit(1)",
+].join("\n");
 
-/**
- * Judges a given submission.
- * @param {String} submissionId - The ID of the submission to judge.
- */
-async function judgeSubmission(submissionId) {
-  let submission;
-  let problem;
+const CHECKER_RUNNER = [
+  "import pathlib, runpy, sys, traceback",
+  "exit_code = 2",
+  "try:",
+  "    namespace = runpy.run_path('checker.py')",
+  "    checker = namespace.get('check')",
+  "    if not callable(checker):",
+  "        raise TypeError('checker.py must define check(input_data, expected_output, actual_output)')",
+  "    values = [pathlib.Path(name).read_text() for name in ('input.txt', 'expected.txt', 'actual.txt')]",
+  "    result = checker(*values)",
+  "    if type(result) is not bool:",
+  "        raise TypeError('check must return True or False')",
+  "    exit_code = 0 if result else 1",
+  "except BaseException:",
+  "    traceback.print_exc()",
+  "sys.exit(exit_code)",
+].join("\n");
+const languages = {
+  python: { image: PYTHON_IMAGE, file: "main.py", run: "python -I main.py" },
+  c: {
+    image: "gcc:14",
+    file: "main.c",
+    compile: ["gcc", "main.c", "-O2", "-o", "main"],
+    run: "./main",
+  },
+  cpp: {
+    image: "gcc:14",
+    file: "main.cpp",
+    compile: ["g++", "main.cpp", "-std=c++17", "-O2", "-o", "main"],
+    run: "./main",
+  },
+  java: {
+    image: "eclipse-temurin:21-jdk",
+    file: "Main.java",
+    compile: ["javac", "-J-Xmx128m", "Main.java"],
+    run: "java -Xmx128m -XX:CompressedClassSpaceSize=32m -XX:ReservedCodeCacheSize=32m -XX:+UseSerialGC Main",
+  },
+};
 
-  console.log(`Starting judgment for submission: ${submissionId}`);
+const normalizeOutput = (output) => output.replace(/\r\n/g, "\n").trimEnd();
+const mount = (source, target, readOnly = true) => ({
+  Source: source,
+  Target: target,
+  Type: "bind",
+  ReadOnly: readOnly,
+});
 
-  try {
-    submission = await Submission.findById(submissionId);
-    if (!submission) {
-      console.error(`[JudgeService] Submission ${submissionId} not found.`);
-      return;
-    }
-
-    // Prevent re-judging if it's already judged or actively being judged by another process
-    if (submission.status !== "Pending") {
-      console.log(
-        `[JudgeService] Submission ${submissionId} is not 'Pending' (current: ${submission.status}). Skipping.`
-      );
-      return;
-    }
-
-    problem = await Problem.findById(submission.problem);
-    if (!problem) {
-      await Submission.findByIdAndUpdate(submissionId, {
-        status: "System Error" /*, executionOutput: "Problem details not found." */,
-      });
-      console.error(
-        `[JudgeService] Problem ${submission.problem} for submission ${submissionId} not found.`
-      );
-      return;
-    }
-
-    // Mark submission as "Judging"
-    submission.status = "Judging";
-    await submission.save();
-    console.log(`[JudgeService] Submission ${submissionId} marked as 'Judging'.`);
-  } catch (dbError) {
-    console.error(
-      `[JudgeService] DB error before starting Docker for submission ${submissionId}:`,
-      dbError
-    );
-    if (submission && submission._id) {
-      // If submission was fetched, try to mark error
-      await Submission.findByIdAndUpdate(submissionId, {
-        status: "System Error" /*, executionOutput: "DB error during pre-judge setup."*/,
-      }).catch((err) => console.error("Failed to mark System Error", err));
-    }
-    return;
+async function validateCheckerCode(checkerCode) {
+  if (typeof checkerCode !== "string" || !checkerCode.trim()) {
+    return { valid: false, message: "Python checker code is required." };
+  }
+  if (Buffer.byteLength(checkerCode, "utf8") > 65536) {
+    return { valid: false, message: "Python checker must be no larger than 64KB." };
   }
 
-  const userCode = submission.code;
-  const testCases = problem.cases;
-  const language = submission.language.toLowerCase();
-  let finalStatus = "Judging"; // Default, will be updated based on test cases
-
-  // Create a temporary directory for the user's code and any I/O files
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), `oj-${language}-${submissionId}-`));
-
-  // Prepare file paths and commands based on language
-  let codeFilePath, imageName, compileCmd, execCmd;
-  if (language === "python") {
-    codeFilePath = path.join(tempDir, "user_script.py");
-    imageName = PYTHON_IMAGE;
-    compileCmd = null; // Python does not need a separate compilation step
-    execCmd = ["python", "user_script.py"];
-  } else if (language === "c") {
-    codeFilePath = path.join(tempDir, "user_code.c");
-    imageName = C_IMAGE;
-    compileCmd = ["gcc", "user_code.c", "-o", "a.out"];
-    execCmd = ["./a.out"];
-  } else if (language === "cpp") {
-    codeFilePath = path.join(tempDir, "user_code.cpp");
-    imageName = CPP_IMAGE;
-    compileCmd = ["g++", "user_code.cpp", "-o", "a.out"];
-    execCmd = ["./a.out"];
-  } else if (language === "java") {
-    // For Java, the main class file must be named Main.java
-    codeFilePath = path.join(tempDir, "Main.java");
-    imageName = JAVA_IMAGE;
-    compileCmd = ["javac", "Main.java"];
-    execCmd = ["java", "Main"];
-  } else {
-    console.warn(`[JudgeService] Unsupported language: ${language}. Marking as Compilation Error.`);
-    await Submission.findByIdAndUpdate(submissionId, { status: "Compilation Error" });
-    await fs
-      .rm(tempDir, { recursive: true, force: true })
-      .catch((e) => console.warn(`Failed to clean temp dir ${tempDir}:`, e));
-    return;
-  }
-
+  let tempDir;
   try {
-    await fs.writeFile(codeFilePath, userCode);
-    console.log(`[JudgeService] User code for ${submissionId} written to ${codeFilePath}`);
-
-    // --- Compilation Step (for compiled languages like C, C++, Java) ---
-    if (compileCmd) {
-      console.log(`[JudgeService] Compiling ${language} code for submission ${submissionId}`);
-      let compileContainer;
-      try {
-        compileContainer = await docker.createContainer({
-          Image: imageName,
-          WorkingDir: "/tmp",
-          Cmd: compileCmd, // Use the dynamic compile command
-          User: `${os.userInfo().uid}:${os.userInfo().gid}`,
-          HostConfig: {
-            Mounts: [
-              {
-                Target: "/tmp",
-                Source: tempDir,
-                Type: "bind",
-              },
-            ],
-            Memory: MEMORY_LIMIT_MB * 1024 * 1024,
-            NetworkMode: "none",
-          },
-        });
-
-        await compileContainer.start();
-        const waitResult = await compileContainer.wait({ timeout: 5000 }); // 5-second compile time limit
-
-        if (waitResult.StatusCode !== 0) {
-          const logs = await compileContainer.logs({ stdout: true, stderr: true });
-          console.error(`[JudgeService] Compilation failed for ${submissionId}.`, logs.toString());
-          finalStatus = "Compilation Error";
-        } else {
-          console.log(`[JudgeService] Compilation successful for ${submissionId}.`);
-        }
-      } finally {
-        if (compileContainer) {
-          await compileContainer
-            .remove({ force: true })
-            .catch((e) => console.warn(`Failed to remove compile container:`, e));
-        }
-      }
+    const tempRoot = process.env.JUDGE_TEMP_DIR || path.resolve(__dirname, "..", ".judge-tmp");
+    await fs.mkdir(tempRoot, { recursive: true });
+    tempDir = await fs.mkdtemp(path.join(tempRoot, "checker-validation-"));
+    await fs.writeFile(path.join(tempDir, "checker.py"), checkerCode);
+    const validation = await runContainer({
+      image: PYTHON_IMAGE,
+      command: ["python", "-I", "-c", CHECKER_VALIDATOR],
+      mounts: [mount(tempDir, "/workspace")],
+      timeoutMs: 2000,
+    });
+    if (validation.timedOut || validation.outputLimited || validation.oomKilled) {
+      return { valid: false, message: "Checker validation exceeded its resource limit." };
     }
-    // If compilation failed, skip execution
-    if (finalStatus === "Compilation Error") {
-      // This throws an error to jump to the `catch` and `finally` blocks
-      // to ensure cleanup and status update happens in one place.
-      throw new Error("Compilation failed, aborting judgment.");
+    if (validation.exitCode !== 0) {
+      return {
+        valid: false,
+        message: validation.stdout.trim() || "Checker syntax or function signature is invalid.",
+      };
     }
-
-    // --- Execution Step (for all languages) ---
-    if (!testCases || testCases.length === 0) {
-      // If there are no test cases, it can be considered "Accepted" or an error
-      // For typical OJ, this might be a "System Error" or needs clarification.
-      // Let's assume "Accepted" if no test cases, or you can change to "System Error".
-      finalStatus = "Accepted"; // Or "System Error" if test cases are mandatory
-      console.log(
-        `[JudgeService] No test cases for problem ${problem._id}. Marking ${submissionId} as ${finalStatus}.`
-      );
-    } else {
-      console.log(`[JudgeService] Processing ${testCases.length} test cases for ${submissionId}.`);
-      for (let i = 0; i < testCases.length; i++) {
-        const testCase = testCases[i];
-        console.log(
-          `[JudgeService] Running test case ${i + 1}/${testCases.length} for ${submissionId}.`
-        );
-
-        const hostConfig = {
-          Memory: MEMORY_LIMIT_MB * 1024 * 1024,
-          NetworkMode: "none",
-        };
-
-        // For C, we mount the entire directory to access the compiled file.
-        // For Python, we just need to mount the script.
-        if (language === "c" || language === "cpp" || language === "java" || language === "python") {
-          hostConfig.Mounts = [
-            {
-              Target: "/tmp",
-              Source: tempDir,
-              Type: "bind",
-              ReadOnly: false, // Must be writable for input.txt
-            },
-          ];
-        }
-        
-
-        let container;
-        try {
-          // 步骤 1: 将测试用例的输入写入临时文件
-          const inputFilePath = path.join(tempDir, "input.txt");
-          await fs.writeFile(inputFilePath, testCase.input);
-
-          const workingDir = '/tmp';
-          container = await docker.createContainer({
-            Image: imageName,
-            Cmd: ["/bin/sh", "-c", `${execCmd.join(" ")} < input.txt`], // Use dynamic execCmd
-            WorkingDir: workingDir, // Set working directory based on language
-            HostConfig: hostConfig,
-            AttachStdout: true,
-            AttachStderr: true,
-            Tty: false,
-          });
-
-          const startTime = process.hrtime();
-          await container.start();
-
-          const waitOperation = container.wait();
-          const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error("TLE_custom")), TIME_LIMIT_MS)
-          );
-
-          let waitResult;
-          try {
-            waitResult = await Promise.race([waitOperation, timeoutPromise]);
-          } catch (err) {
-            if (err.message === "TLE_custom") {
-              finalStatus = "Time Limit Exceeded";
-              console.log(`[JudgeService] Test case TLE for ${submissionId}.`);
-              if (container) {
-                await container
-                  .stop({ t: 1 })
-                  .catch((e) => console.warn("Failed to stop TLE container:", e));
-              }
-            } else {
-              throw err;
-            }
-          }
-
-          const endTime = process.hrtime(startTime);
-          const durationMs = (endTime[0] * 1e9 + endTime[1]) / 1e6;
-
-          if (finalStatus === "Time Limit Exceeded") {
-            console.log(
-              `[JudgeService] Test case ${i + 1} for ${submissionId} exceeded time limit.`
-            );
-            break;
-          }
-
-          const logBuffer = await container.logs({ stdout: true, stderr: true });
-
-          let stdout = "";
-          let offset = 0;
-          while (offset < logBuffer.length) {
-            if (offset + 8 > logBuffer.length) {
-              break;
-            }
-            const length = logBuffer.readUInt32BE(offset + 4);
-            const nextOffset = offset + 8 + length;
-            if (nextOffset > logBuffer.length) {
-              break;
-            }
-
-            const streamType = logBuffer[offset];
-            if (streamType === 1) {
-              stdout += logBuffer.toString("utf-8", offset + 8, nextOffset);
-            }
-
-            offset = nextOffset;
-          }
-
-          stdout = stdout.trim();
-
-          console.log(
-            `[JudgeService] Test case ${i + 1} for ${submissionId} took ${durationMs.toFixed(
-              2
-            )}ms. Exit code: ${waitResult.StatusCode}`
-          );
-
-          if (waitResult.StatusCode !== 0) {
-            finalStatus = "Runtime Error";
-            console.log(
-              `[JudgeService] Test case Runtime Error for ${submissionId}. stderr: ${stderr}`
-            );
-            break;
-          }
-
-          const normalizedActualOutput = stdout.replace(/\r\n/g, "\n");
-          const normalizedExpectedOutput = testCase.output.replace(/\r\n/g, "\n");
-
-          if (normalizedActualOutput !== normalizedExpectedOutput) {
-            finalStatus = "Wrong Answer";
-            console.log(
-              `[JudgeService] Test case Wrong Answer for ${submissionId}. Expected: "${normalizedExpectedOutput}", Got: "${normalizedActualOutput}"`
-            );
-            break;
-          }
-          // If loop continues, this test case passed.
-        } finally {
-          if (container) {
-            await container
-              .remove({ force: true })
-              .catch((e) =>
-                console.warn(`[JudgeService] Failed to remove container for ${submissionId}:`, e)
-              );
-          }
-        }
-      }
-    }
-
-    if (finalStatus === "Judging" && testCases && testCases.length > 0) {
-      // All test cases passed
-      finalStatus = "Accepted";
-      console.log(
-        `[JudgeService] All test cases passed for ${submissionId}. Marking as 'Accepted'.`
-      );
-    }
+    return { valid: true, message: "Checker syntax and function signature are valid." };
   } catch (error) {
-    console.error(
-      `[JudgeService] Critical error during judging submission ${submissionId}:`,
-      error
-    );
-    // If status wasn't already set (e.g., Compilation Error), mark as System Error.
-    if (finalStatus === "Judging") {
-      finalStatus = "System Error";
-    }
-    // Optionally store error.message in submission.executionOutput
+    console.error("[JudgeService] Checker validation failed:", error.message);
+    return { valid: false, systemError: true, message: "Checker validation is unavailable." };
   } finally {
-    await fs
-      .rm(tempDir, { recursive: true, force: true })
-      .catch((e) => console.warn(`[JudgeService] Failed to clean temp dir ${tempDir}:`, e));
+    if (tempDir) await fs.rm(tempDir, { recursive: true, force: true });
   }
-
-  // Final update to submission status
-  await Submission.findByIdAndUpdate(submissionId, { status: finalStatus });
-  console.log(
-    `[JudgeService] Submission ${submissionId} final status: ${finalStatus}. Judgment complete.`
-  );
 }
 
-module.exports = { judgeSubmission };
+// Pure evaluation entry point also used by the Docker integration tests.
+async function evaluateSubmission(problem, submission) {
+  let tempDir;
+  let passedCases = 0;
+  let executionTimeMs = 0;
+  const verdict = (status, message = "") => ({ status, message, passedCases, executionTimeMs });
+
+  try {
+    const language = Object.hasOwn(languages, submission.language)
+      ? languages[submission.language]
+      : null;
+    if (!language) return verdict("Compilation Error", "Unsupported language.");
+    if (!problem.cases?.length) return verdict("System Error", "No test cases configured.");
+    const mode = problem.judgeMode || "standard";
+    if (
+      !["standard", "python"].includes(mode) ||
+      (mode === "python" && !problem.checkerCode?.trim())
+    ) {
+      return verdict("System Error", "Invalid checker configuration.");
+    }
+
+    const tempRoot = process.env.JUDGE_TEMP_DIR || path.resolve(__dirname, "..", ".judge-tmp");
+    await fs.mkdir(tempRoot, { recursive: true });
+    tempDir = await fs.mkdtemp(path.join(tempRoot, "submission-"));
+    const sourceDir = path.join(tempDir, "source");
+    const inputDir = path.join(tempDir, "input");
+    const checkerDir = path.join(tempDir, "checker");
+    await Promise.all([sourceDir, inputDir, checkerDir].map((dir) => fs.mkdir(dir)));
+    await fs.writeFile(path.join(sourceDir, language.file), submission.code);
+
+    if (language.compile) {
+      const compile = await runContainer({
+        image: language.image,
+        command: language.compile,
+        mounts: [mount(sourceDir, "/workspace", false)],
+        timeoutMs: 15000,
+        memoryMb: 512,
+      });
+      if (compile.exitCode !== 0 || compile.timedOut || compile.outputLimited) {
+        return verdict(
+          "Compilation Error",
+          compile.timedOut ? "Compilation timed out." : compile.stderr.slice(0, 4000)
+        );
+      }
+    }
+
+    for (const testCase of problem.cases) {
+      // Only the current input is visible to the contestant. Artifacts are read-only.
+      await fs.writeFile(path.join(inputDir, "input.txt"), testCase.input || "");
+      const result = await runContainer({
+        image: language.image,
+        command: ["/bin/sh", "-c", `exec ${language.run} < /input/input.txt`],
+        mounts: [mount(sourceDir, "/workspace"), mount(inputDir, "/input")],
+        timeoutMs: 2000,
+      });
+      executionTimeMs = Math.max(executionTimeMs, result.durationMs);
+      if (result.outputLimited) return verdict("Output Limit Exceeded");
+      if (result.timedOut) return verdict("Time Limit Exceeded");
+      if (result.oomKilled) return verdict("Memory Limit Exceeded");
+      if (result.exitCode !== 0) return verdict("Runtime Error");
+
+      if (mode === "python") {
+        // Separate container and mount: checker code/answers never reach the solution.
+        await Promise.all([
+          fs.writeFile(path.join(checkerDir, "checker.py"), problem.checkerCode),
+          fs.writeFile(path.join(checkerDir, "input.txt"), testCase.input || ""),
+          fs.writeFile(path.join(checkerDir, "expected.txt"), testCase.output || ""),
+          fs.writeFile(path.join(checkerDir, "actual.txt"), result.stdout),
+        ]);
+        const check = await runContainer({
+          image: PYTHON_IMAGE,
+          command: ["python", "-I", "-c", CHECKER_RUNNER],
+          mounts: [mount(checkerDir, "/workspace")],
+          timeoutMs: 2000,
+        });
+        // The wrapper maps boolean True/False to 0/1. All other outcomes are checker failures.
+        if (
+          check.timedOut ||
+          check.outputLimited ||
+          check.oomKilled ||
+          ![0, 1].includes(check.exitCode)
+        ) {
+          return verdict(
+            "System Error",
+            "The problem checker failed. Please contact the problem author."
+          );
+        }
+        if (check.exitCode === 1) return verdict("Wrong Answer");
+      } else if (normalizeOutput(result.stdout) !== normalizeOutput(testCase.output || "")) {
+        return verdict("Wrong Answer");
+      }
+      passedCases++;
+    }
+    return verdict("Accepted");
+  } catch (error) {
+    console.error("[JudgeService] Evaluation failed:", error.message);
+    return verdict(
+      "System Error",
+      "Judge environment unavailable. Please contact the administrator."
+    );
+  } finally {
+    if (tempDir) await fs.rm(tempDir, { recursive: true, force: true });
+  }
+}
+
+async function judgeSubmission(submissionId) {
+  // Atomic claim prevents two workers from judging the same Pending submission.
+  const submission = await Submission.findOneAndUpdate(
+    { _id: submissionId, status: "Pending" },
+    { status: "Judging" },
+    { new: true }
+  );
+  if (!submission) return;
+
+  try {
+    const problem = await Problem.findById(submission.problem);
+    const result = problem
+      ? await evaluateSubmission(problem, submission)
+      : { status: "System Error", message: "Problem not found." };
+    await Submission.findByIdAndUpdate(submissionId, result, { runValidators: true });
+  } catch (error) {
+    await Submission.findByIdAndUpdate(submissionId, {
+      status: "System Error",
+      message: "Failed to complete judging.",
+    });
+    throw error;
+  }
+}
+
+module.exports = { judgeSubmission, evaluateSubmission, validateCheckerCode };

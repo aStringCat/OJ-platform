@@ -18,33 +18,59 @@ function formatParams(params) {
     .join("&");
 }
 
-// convert a fetch result to a JSON object with error handling for fetch and json errors
-function convertToJSON(res) {
-  if (!res.ok) {
-    throw `API request failed with response status ${res.status} and text: ${res.statusText}`;
+export class ApiError extends Error {
+  constructor(message, status, data) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.data = data;
+  }
+}
+
+// Convert a fetch result to JSON while preserving useful server error details.
+async function convertToJSON(res) {
+  const text = await res.text();
+  let data = null;
+
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch (_error) {
+      if (!res.ok) {
+        throw new ApiError(
+          `API request failed with response status ${res.status}: ${text}`,
+          res.status,
+          null
+        );
+      }
+      throw new Error(`API response could not be converted to JSON: ${text}`);
+    }
   }
 
-  return res
-    .clone() // clone so that the original is still readable for debugging
-    .json() // start converting to JSON object
-    .catch(() => {
-      // throw an error containing the text that couldn't be converted to JSON
-      return res.text().then((text) => {
-        throw `API request's result could not be converted to a JSON object: \n${text}`;
-      });
-    });
+  if (!res.ok) {
+    throw new ApiError(
+      data?.msg || `API request failed with response status ${res.status}`,
+      res.status,
+      data
+    );
+  }
+
+  return data;
 }
 
 // Helper code to make a get request. Default parameter of empty JSON Object for params.
 // Returns a Promise to a JSON Object.
 export async function get(endpoint, params = {}) {
-  const fullPath = endpoint + "?" + formatParams(params);
+  const query = formatParams(params);
+  const fullPath = query ? `${endpoint}?${query}` : endpoint;
   try {
     const res = await fetch(fullPath);
     return convertToJSON(res);
   } catch (error) {
-    // give a useful error message
-    throw `GET request to ${fullPath} failed with error:\n${error}`;
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    throw new Error(`GET request to ${fullPath} failed: ${error.message || error}`);
   }
 }
 
@@ -60,7 +86,9 @@ export async function post(endpoint, params = {}) {
     });
     return convertToJSON(res);
   } catch (error) {
-    // give a useful error message
-    throw `POST request to ${endpoint} failed with error:\n${error}`;
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    throw new Error(`POST request to ${endpoint} failed: ${error.message || error}`);
   }
 }

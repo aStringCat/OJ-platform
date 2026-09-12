@@ -1,19 +1,24 @@
 // client/src/index.jsx
 
-import { StrictMode } from "react";
+import { StrictMode, Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./components/App.jsx";
 import NotFound from "./components/pages/NotFound";
-import Home from "./components/pages/Home.jsx";
-import Dashboard from "./components/pages/Dashboard.jsx";
-import Problems from "./components/pages/Problems.jsx";
-import ProblemDetailPage from "./components/pages/ProblemDetailPage.jsx";
-import AddProblemPage from "./components/pages/AddProblemPage.jsx";
-import ProfilePage from "./components/pages/ProfilePage.jsx";
-import QuerySubmission from "./components/pages/QuerySubmissionPage.jsx";
-import SubmissionDetailPage from "./components/pages/SubmissionDetailPage.jsx";
-import { AuthPage } from "./components/pages/LoginRegister.jsx";
+import CircularProgress from "@mui/material/CircularProgress";
+import Box from "@mui/material/Box";
 import { AuthProvider } from "./auth";
+
+const Home = lazy(() => import("./components/pages/Home.jsx"));
+const Dashboard = lazy(() => import("./components/pages/Dashboard.jsx"));
+const Problems = lazy(() => import("./components/pages/Problems.jsx"));
+const ProblemDetailPage = lazy(() => import("./components/pages/ProblemDetailPage.jsx"));
+const AddProblemPage = lazy(() => import("./components/pages/AddProblemPage.jsx"));
+const ProfilePage = lazy(() => import("./components/pages/ProfilePage.jsx"));
+const QuerySubmission = lazy(() => import("./components/pages/QuerySubmissionPage.jsx"));
+const SubmissionDetailPage = lazy(() => import("./components/pages/SubmissionDetailPage.jsx"));
+const AuthPage = lazy(() =>
+  import("./components/pages/LoginRegister.jsx").then((module) => ({ default: module.AuthPage }))
+);
 
 import {
   createBrowserRouter,
@@ -44,7 +49,15 @@ const router = createBrowserRouter(
 createRoot(document.getElementById("root")).render(
   <StrictMode>
     <AuthProvider>
-      <RouterProvider router={router} />
+      <Suspense
+        fallback={
+          <Box sx={{ display: "flex", justifyContent: "center", mt: 8 }}>
+            <CircularProgress />
+          </Box>
+        }
+      >
+        <RouterProvider router={router} />
+      </Suspense>
     </AuthProvider>
   </StrictMode>
 );

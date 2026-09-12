@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../../auth";
 import { get } from "../../utilities";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
 
 import {
   Container,
@@ -29,8 +29,12 @@ const getStatusColor = (status) => {
       return "success";
     case "Wrong Answer":
     case "Compilation Error":
+    case "Runtime Error":
+    case "System Error":
       return "error";
     case "Time Limit Exceeded":
+    case "Memory Limit Exceeded":
+    case "Output Limit Exceeded":
       return "warning";
     case "Pending":
       return "info";
@@ -60,22 +64,48 @@ const QuerySubmission = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [page, setPage] = useState(1);
-  const navigate = useNavigate(); // Initialize the navigate function
+  const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
-    if (currentUser) {
-      setLoading(true);
-      get("/api/submissions") //
+    if (!currentUser) {
+      setLoading(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    let refreshTimer;
+
+    const loadSubmissions = (showLoading = false) => {
+      if (showLoading) {
+        setLoading(true);
+      }
+      get("/api/submissions")
         .then((data) => {
+          if (cancelled) return;
           setSubmissions(data);
-          setLoading(false);
+          setError(null);
+          if (data.some((submission) => ["Pending", "Judging"].includes(submission.status))) {
+            refreshTimer = window.setTimeout(() => loadSubmissions(), 2000);
+          }
         })
         .catch((err) => {
+          if (cancelled) return;
           console.error("Failed to fetch submissions:", err);
-          setError("Failed to load submission history. Please try again later.");
-          setLoading(false);
+          setError(err.data?.msg || err.message || "Failed to load submission history.");
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setLoading(false);
+          }
         });
-    }
+    };
+
+    loadSubmissions(true);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(refreshTimer);
+    };
   }, [currentUser]);
 
   const handleChangePage = (_event, newPage) => {
@@ -87,7 +117,7 @@ const QuerySubmission = () => {
     page * ITEMS_PER_PAGE
   );
 
-  if (authLoading || loading) {
+  if (authLoading) {
     return (
       <Container sx={{ textAlign: "center", mt: 5 }}>
         <CircularProgress />
@@ -97,7 +127,16 @@ const QuerySubmission = () => {
   }
 
   if (!currentUser) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  if (loading) {
+    return (
+      <Container sx={{ textAlign: "center", mt: 5 }}>
+        <CircularProgress />
+        <Typography>Loading submissions...</Typography>
+      </Container>
+    );
   }
 
   return (
@@ -171,14 +210,16 @@ const QuerySubmission = () => {
                 </TableBody>
               </Table>
             </TableContainer>
-            <Box sx={{ display: "flex", justifyContent: "center", mt: 3 }}>
-              <Pagination
-                count={Math.ceil(submissions.length / ITEMS_PER_PAGE)}
-                page={page}
-                onChange={handleChangePage}
-                color="primary"
-              />
-            </Box>
+            {submissions.length > ITEMS_PER_PAGE && (
+              <Box sx={{ display: "flex", justifyContent: "center", mt: 3 }}>
+                <Pagination
+                  count={Math.ceil(submissions.length / ITEMS_PER_PAGE)}
+                  page={page}
+                  onChange={handleChangePage}
+                  color="primary"
+                />
+              </Box>
+            )}
           </>
         )}
       </Paper>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { post } from "../../utilities";
 import BackButton from "../modules/BackButton";
+import CodeBlock from "../modules/CodeBlock";
 import { useAuth } from "../../auth";
 import { Navigate, useLocation } from "react-router-dom";
 
@@ -19,50 +20,83 @@ import IconButton from "@mui/material/IconButton";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CircularProgress from "@mui/material/CircularProgress";
 import Alert from "@mui/material/Alert";
+import checkerExample from "../../../../examples/checkers/unordered-integers.py?raw";
+
+const createInitialProblemData = () => ({
+  problem_id: "",
+  problem_name: "",
+  problem_difficulty: "easy",
+  content: "",
+  judgeMode: "python",
+  checkerCode: checkerExample,
+  examples: [{ input: "", output: "", explanation: "" }],
+  cases: [{ input: "", output: "" }],
+});
 
 const AddProblemPage = () => {
   const { currentUser, isLoading: authLoading } = useAuth();
   const location = useLocation();
 
-  const initialProblemData = {
-    problem_id: "",
-    problem_name: "",
-    problem_difficulty: "easy",
-    content: "",
-    examples: [{ input: "", output: "", explanation: "" }], // Start with one example field
-    cases: [{ input: "", output: "" }], // Start with one case field, as it's required
-  };
-
-  const [problemData, setProblemData] = useState(initialProblemData);
+  const [problemData, setProblemData] = useState(createInitialProblemData);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [checkerChecking, setCheckerChecking] = useState(false);
+  const [checkerValidation, setCheckerValidation] = useState(null);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    if (name === "checkerCode" || name === "judgeMode") {
+      setCheckerValidation(null);
+    }
     setProblemData((prevData) => ({
       ...prevData,
       [name]: value,
     }));
   };
 
+  const validateChecker = async () => {
+    if (!problemData.checkerCode.trim()) {
+      setCheckerValidation({ valid: false, message: "Please provide a Python checker script." });
+      return false;
+    }
+
+    setCheckerChecking(true);
+    setCheckerValidation(null);
+    try {
+      const result = await post("/api/checker/validate", {
+        checkerCode: problemData.checkerCode,
+      });
+      setCheckerValidation(result);
+      return true;
+    } catch (err) {
+      setCheckerValidation({
+        valid: false,
+        message: err.data?.message || err.data?.msg || err.message || "Checker validation failed.",
+      });
+      return false;
+    } finally {
+      setCheckerChecking(false);
+    }
+  };
+
   const handleExampleChange = (index, e) => {
     const { name, value } = e.target;
-    const updatedExamples = [...problemData.examples];
-    updatedExamples[index][name] = value;
     setProblemData((prevData) => ({
       ...prevData,
-      examples: updatedExamples,
+      examples: prevData.examples.map((example, exampleIndex) =>
+        exampleIndex === index ? { ...example, [name]: value } : example
+      ),
     }));
   };
 
   const handleCaseChange = (index, e) => {
     const { name, value } = e.target;
-    const updatedCases = [...problemData.cases];
-    updatedCases[index][name] = value;
     setProblemData((prevData) => ({
       ...prevData,
-      cases: updatedCases,
+      cases: prevData.cases.map((problemCase, caseIndex) =>
+        caseIndex === index ? { ...problemCase, [name]: value } : problemCase
+      ),
     }));
   };
 
@@ -74,11 +108,9 @@ const AddProblemPage = () => {
   };
 
   const removeExample = (index) => {
-    const updatedExamples = [...problemData.examples];
-    updatedExamples.splice(index, 1);
     setProblemData((prevData) => ({
       ...prevData,
-      examples: updatedExamples,
+      examples: prevData.examples.filter((_, exampleIndex) => exampleIndex !== index),
     }));
   };
 
@@ -94,13 +126,14 @@ const AddProblemPage = () => {
       setError("At least one test case is required.");
       return;
     }
-    const updatedCases = [...problemData.cases];
-    updatedCases.splice(index, 1);
-    setProblemData((prevData) => ({ ...prevData, cases: updatedCases }));
+    setProblemData((prevData) => ({
+      ...prevData,
+      cases: prevData.cases.filter((_, caseIndex) => caseIndex !== index),
+    }));
     setError(""); // Clear error if successfully removed a case (and more than one remains)
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setSuccess("");
@@ -122,19 +155,27 @@ const AddProblemPage = () => {
       (ex) => ex.input?.trim() || ex.output?.trim() || ex.explanation?.trim()
     );
 
-    if (examplesToSubmit.some((ex) => !ex.input?.trim() || !ex.output?.trim())) {
-      setError("If an example is partially filled, its input and output fields are required.");
+    if (examplesToSubmit.some((ex) => !ex.output?.trim())) {
+      setError("If an example is filled, its output field is required.");
       setSubmitLoading(false);
       return;
     }
 
-    // Validate Test Cases: At least one case with non-empty input and output is required.
-    if (
-      !problemData.cases ||
-      problemData.cases.length === 0 ||
-      problemData.cases.some((c) => !c.input?.trim() || !c.output?.trim())
-    ) {
-      setError("At least one test case with non-empty input and output is required.");
+    // Empty input is valid for problems that do not read from standard input.
+    if (!problemData.cases || problemData.cases.length === 0) {
+      setError("At least one test case is required. Input and output may be empty.");
+      setSubmitLoading(false);
+      return;
+    }
+
+    if (problemData.judgeMode === "python" && !problemData.checkerCode.trim()) {
+      setError("Please provide a Python checker script.");
+      setSubmitLoading(false);
+      return;
+    }
+
+    if (problemData.judgeMode === "python" && !(await validateChecker())) {
+      setError("Please fix the Python checker before adding the problem.");
       setSubmitLoading(false);
       return;
     }
@@ -145,16 +186,12 @@ const AddProblemPage = () => {
       problem_name: problemData.problem_name.trim(),
       content: problemData.content.trim(),
       examples: examplesToSubmit.map((ex) => ({
-        // Trim fields of examples to be submitted
-        input: ex.input.trim(),
-        output: ex.output.trim(),
-        explanation: ex.explanation?.trim() || "", // Ensure explanation is a string
+        input: ex.input,
+        output: ex.output,
+        explanation: ex.explanation?.trim() || "",
       })),
-      cases: problemData.cases.map((c) => ({
-        // Trim fields of cases
-        input: c.input.trim(),
-        output: c.output.trim(),
-      })),
+      // Test data is whitespace-sensitive, so preserve it exactly as entered.
+      cases: problemData.cases.map((c) => ({ input: c.input, output: c.output })),
     };
 
     post("/api/problem", dataToSubmit)
@@ -165,7 +202,8 @@ const AddProblemPage = () => {
             response.problem_id || dataToSubmit.problem_id
           }) added successfully!`
         );
-        setProblemData(initialProblemData); // Reset form to initial state
+        setProblemData(createInitialProblemData());
+        setCheckerValidation(null);
       })
       .catch((err) => {
         setSubmitLoading(false);
@@ -267,6 +305,7 @@ const AddProblemPage = () => {
                 fullWidth
                 id="content"
                 label="Problem Content/Description"
+                helperText={"Use fenced code blocks such as ```python ... ``` to render code."}
                 name="content"
                 multiline
                 rows={6}
@@ -337,6 +376,70 @@ const AddProblemPage = () => {
           {/* Cases Section */}
           <Box sx={{ my: 3, borderTop: "1px solid #ddd", pt: 2 }}>
             <Typography variant="h6" sx={{ mb: 1 }}>
+              Answer Judging
+            </Typography>
+            <FormControl fullWidth margin="normal">
+              <InputLabel id="judge-mode-label">Judge Mode</InputLabel>
+              <Select
+                labelId="judge-mode-label"
+                name="judgeMode"
+                label="Judge Mode"
+                value={problemData.judgeMode}
+                onChange={handleChange}
+              >
+                <MenuItem value="standard">Standard output comparison</MenuItem>
+                <MenuItem value="python">Python checker</MenuItem>
+              </Select>
+            </FormControl>
+            {problemData.judgeMode === "python" && (
+              <>
+                <Alert severity="info" sx={{ my: 1 }}>
+                  Define check(input_data, expected_output, actual_output). Return True when the
+                  contestant output is correct and False when it is wrong. The function runs in a
+                  separate container with a 2-second limit. Maximum script size: 64KB.
+                </Alert>
+                <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 1 }}>
+                  <Button
+                    onClick={() => {
+                      setProblemData((previous) => ({
+                        ...previous,
+                        checkerCode: checkerExample,
+                      }));
+                      setCheckerValidation(null);
+                    }}
+                  >
+                    Reset Demo
+                  </Button>
+                  <Button variant="outlined" onClick={validateChecker} disabled={checkerChecking}>
+                    {checkerChecking ? <CircularProgress size={20} /> : "Check Script"}
+                  </Button>
+                </Box>
+                {checkerValidation && (
+                  <Alert severity={checkerValidation.valid ? "success" : "error"} sx={{ mb: 2 }}>
+                    {checkerValidation.message}
+                  </Alert>
+                )}
+                <TextField
+                  label="Python Checker"
+                  name="checkerCode"
+                  fullWidth
+                  multiline
+                  minRows={12}
+                  value={problemData.checkerCode}
+                  onChange={handleChange}
+                  slotProps={{ input: { sx: { fontFamily: "monospace" } } }}
+                />
+                <Typography variant="subtitle2" sx={{ mt: 2 }}>
+                  Code Preview
+                </Typography>
+                <CodeBlock language="python" maxHeight="360px">
+                  {problemData.checkerCode}
+                </CodeBlock>
+              </>
+            )}
+          </Box>
+          <Box sx={{ my: 3, borderTop: "1px solid #ddd", pt: 2 }}>
+            <Typography variant="h6" sx={{ mb: 1 }}>
               Test Cases (Not Publicly Visible - At least one required)
             </Typography>
             {problemData.cases.map((problemCase, index) => (
@@ -360,7 +463,6 @@ const AddProblemPage = () => {
                 <TextField
                   margin="dense"
                   fullWidth
-                  required
                   label={`Input`}
                   name="input"
                   multiline
@@ -371,7 +473,6 @@ const AddProblemPage = () => {
                 <TextField
                   margin="dense"
                   fullWidth
-                  required
                   label={`Output`}
                   name="output"
                   multiline

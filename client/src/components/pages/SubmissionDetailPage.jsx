@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { useParams, Link as RouterLink } from "react-router-dom";
+import { Navigate, useLocation, useParams, Link as RouterLink } from "react-router-dom";
 import { useAuth } from "../../auth";
 import { get } from "../../utilities";
 import BackButton from "../modules/BackButton";
+import CodeBlock from "../modules/CodeBlock";
 import {
   Container,
   Typography,
@@ -21,8 +22,12 @@ const getStatusColor = (status) => {
       return "success";
     case "Wrong Answer":
     case "Compilation Error":
+    case "Runtime Error":
+    case "System Error":
       return "error";
     case "Time Limit Exceeded":
+    case "Memory Limit Exceeded":
+    case "Output Limit Exceeded":
       return "warning";
     case "Pending":
       return "info";
@@ -34,27 +39,65 @@ const getStatusColor = (status) => {
 const SubmissionDetailPage = () => {
   const { submissionId } = useParams();
   const { currentUser, isLoading: authLoading } = useAuth();
+  const location = useLocation();
   const [submission, setSubmission] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (currentUser) {
-      setLoading(true);
+    if (!currentUser) {
+      setLoading(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    let refreshTimer;
+
+    const loadSubmission = (showLoading = false) => {
+      if (showLoading) {
+        setLoading(true);
+      }
       get(`/api/submission/${submissionId}`)
         .then((data) => {
+          if (cancelled) return;
           setSubmission(data);
-          setLoading(false);
+          setError(null);
+          if (["Pending", "Judging"].includes(data.status)) {
+            refreshTimer = window.setTimeout(() => loadSubmission(), 1500);
+          }
         })
         .catch((err) => {
+          if (cancelled) return;
           console.error("Failed to fetch submission:", err);
-          setError("Failed to load submission details. You may not have permission to view this.");
-          setLoading(false);
+          setError(err.data?.msg || err.message || "Failed to load submission details.");
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setLoading(false);
+          }
         });
-    }
+    };
+
+    loadSubmission(true);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(refreshTimer);
+    };
   }, [submissionId, currentUser]);
 
-  if (authLoading || loading) {
+  if (authLoading) {
+    return (
+      <Container sx={{ textAlign: "center", mt: 5 }}>
+        <CircularProgress />
+      </Container>
+    );
+  }
+
+  if (!currentUser) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  if (loading) {
     return (
       <Container sx={{ textAlign: "center", mt: 5 }}>
         <CircularProgress />
@@ -97,9 +140,13 @@ const SubmissionDetailPage = () => {
           <Grid>
             <Typography variant="h6">
               Problem:{" "}
-              <Link component={RouterLink} to={`/problem/${submission.problem.problem_id}`}>
-                {submission.problem.problem_name}
-              </Link>
+              {submission.problem ? (
+                <Link component={RouterLink} to={`/problem/${submission.problem.problem_id}`}>
+                  {submission.problem.problem_name}
+                </Link>
+              ) : (
+                "Problem not found"
+              )}
             </Typography>
           </Grid>
           <Grid>
@@ -119,24 +166,20 @@ const SubmissionDetailPage = () => {
 
         <Divider sx={{ my: 3 }} />
 
+        <Typography color="text.secondary" sx={{ mb: 2 }}>
+          Passed cases: {submission.passedCases || 0} · Maximum case wall time:{" "}
+          {submission.executionTimeMs || 0} ms
+        </Typography>
+        {submission.message && (
+          <Alert severity="info" sx={{ mb: 2, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+            {submission.message}
+          </Alert>
+        )}
+
         <Typography variant="h5" component="h2" gutterBottom sx={{ fontWeight: "bold" }}>
           Source Code
         </Typography>
-        <Paper
-          variant="outlined"
-          sx={{
-            p: 2,
-            backgroundColor: "#1e1e1e", // A dark background for the code
-            color: "#d4d4d4",
-            fontFamily: "monospace",
-            whiteSpace: "pre-wrap", // Ensures code wraps correctly
-            wordBreak: "break-all",
-            maxHeight: "600px",
-            overflow: "auto",
-          }}
-        >
-          {submission.code}
-        </Paper>
+        <CodeBlock language={submission.language}>{submission.code}</CodeBlock>
       </Paper>
     </Container>
   );
